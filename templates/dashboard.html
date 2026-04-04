@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% set active_page = 'dashboard' %}
+
+{% block body %}
+<div id="page-dashboard" class="page" style="display:block">
+    <div class="page-content">
+        <div class="dash-metrics">
+            <div class="metric">
+                <div class="metric-label">Total Estruturas</div>
+                <div class="metric-value" id="dash-total">{{ total_est }}</div>
+            </div>
+            <div class="metric">
+                <div class="metric-label">Total Pernas</div>
+                <div class="metric-value" id="dash-pernas">{{ total_legs }}</div>
+            </div>
+            <div class="metric">
+                <div class="metric-label">Prêmio Crédito</div>
+                <div class="metric-value pos" id="dash-credito">{{ brl(credito) }}</div>
+            </div>
+            <div class="metric">
+                <div class="metric-label">Prêmio Débito</div>
+                <div class="metric-value neg" id="dash-debito">{{ brl(abs(debito)) }}</div>
+            </div>
+        </div>
+        <div class="dash-metrics" style="grid-template-columns: 1fr 1fr;">
+            <div class="metric">
+                <div class="metric-label">Ganho Máx. Total</div>
+                <div class="metric-value pos" id="dash-ganho-max">{{ brl(ganho_total) }}</div>
+            </div>
+            <div class="metric">
+                <div class="metric-label">Perda Máx. Total</div>
+                <div class="metric-value neg" id="dash-perda-max">{{ brl(perda_total) }}</div>
+            </div>
+        </div>
+        <div class="dash-charts">
+            <div class="card">
+                <div class="card-title">Distribuição por Tipo</div>
+                <div class="chart-container">
+                    {% if chart_tipos %}{{ chart_tipos|safe }}{% else %}<div class="empty-cell">Sem dados.</div>{% endif %}
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-title">Prêmio por Estrutura</div>
+                <div class="chart-container">
+                    {% if chart_premios %}{{ chart_premios|safe }}{% else %}<div class="empty-cell">Sem dados.</div>{% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

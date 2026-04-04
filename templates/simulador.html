@@ -1,0 +1,410 @@
+{% extends "base.html" %}
+{% set active_page = 'simulador' %}
+
+{% block body %}
+<div id="page-simulador" class="page" style="display:grid">
+
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <span class="sidebar-label">Estruturas</span>
+            <a class="btn btn-sm btn-primary" href="{{ url_for('simulador', modal_est=1) }}">+ Nova</a>
+        </div>
+
+        <form method="get" action="{{ url_for('simulador', eid=selected_id) if selected_id else url_for('simulador') }}" class="search-form">
+            <input name="q" id="search-input" class="search-input" placeholder="Buscar estrutura ou ativo…" autocomplete="off" value="{{ search_q or '' }}">
+        </form>
+
+        <div id="struct-list">
+            {% if not estruturas %}
+            <div class="empty-state">
+                <div class="empty-icon">📂</div>
+                <div>Nenhuma estrutura</div>
+                <div class="empty-sub">Clique em "+ Nova" para começar</div>
+            </div>
+            {% else %}
+            {% for e in estruturas %}
+            <a href="{{ url_for('simulador', eid=e.id, q=search_q or none) }}" class="struct-item{% if selected_id == e.id %} active{% endif %}" style="text-decoration:none;color:inherit;display:block;">
+                <div class="struct-item-row">
+                    <div class="struct-item-info">
+                        <div class="struct-nome">{{ e.nome }}</div>
+                        <div class="struct-meta">{{ e.ativo or '?' }} · {{ e.tipo or '—' }}</div>
+                    </div>
+                    <div class="struct-pnl {{ color_pnl(e._premio_liq) }}">{{ brl(e._premio_liq) }}</div>
+                </div>
+                <div class="struct-footer">
+                    <span>{{ e._legsCount }} perna{% if e._legsCount != 1 %}s{% endif %}</span>
+                    {% set dias = dias_ate_venc(e.dataVenc) %}
+                    {% if dias is not none %}
+                    <span>{% if dias >= 0 %}{{ dias }}d{% else %}vencido{% endif %} para venc.</span>
+                    {% endif %}
+                </div>
+            </a>
+            {% endfor %}
+            {% endif %}
+        </div>
+    </aside>
+
+    <main class="content">
+
+        {% if not selected_id or not estrutura %}
+        <div id="section-empty" class="section-empty">
+            <div class="big-icon">📊</div>
+            <h2>Selecione ou crie uma estrutura</h2>
+            <p>Monte sua estratégia de opções e visualize o payoff<br>com cálculos Black-Scholes precisos.</p>
+            <a class="btn btn-primary" href="{{ url_for('simulador', modal_est=1) }}">+ Nova Estrutura</a>
+        </div>
+        {% else %}
+
+        <div id="section-main" style="display:flex; flex-direction:column; gap:16px;">
+
+            <div class="card">
+                <div class="card-header">
+                    <div class="struct-header-info">
+                        <h2 id="struct-title">{{ estrutura.nome }}</h2>
+                        <p id="struct-subtitle">
+                            {{ estrutura.ativo or '?' }} · {{ estrutura.tipo or '—' }} ·
+                            {% set dias = dias_ate_venc(estrutura.dataVenc) %}
+                            {% if dias is not none %}
+                                {% if dias >= 0 %}Vencimento: {{ fmt_date(estrutura.dataVenc) }} ({{ dias }}d){% else %}Vencimento: {{ fmt_date(estrutura.dataVenc) }} ⚠ Vencido{% endif %}
+                            {% else %}Vencimento: —{% endif %}
+                        </p>
+                    </div>
+                    <div class="struct-header-actions">
+                        <a class="btn btn-sm" href="{{ url_for('simulador', eid=estrutura.id, modal_est=1, edit_est=estrutura.id) }}">✎ Editar</a>
+                        <form method="post" action="{{ url_for('delete_estrutura', eid=estrutura.id) }}" style="display:inline" onsubmit="return confirm('Excluir &quot;{{ estrutura.nome }}&quot; e todas as suas pernas? Esta ação não pode ser desfeita.');">
+                            <button type="submit" class="btn btn-sm btn-danger">✕ Excluir</button>
+                        </form>
+                        <a class="btn btn-sm btn-primary" href="{{ url_for('simulador', eid=estrutura.id, modal_leg=1) }}">+ Perna</a>
+                    </div>
+                </div>
+            </div>
+
+            {% set m = metrics %}
+            <div class="metrics-grid">
+                <div class="metric">
+                    <div class="metric-label">Posição Inicial</div>
+                    <div class="metric-value {{ color_pnl(m.posInicial) }}" id="m-inicial">{{ brl(m.posInicial) }}</div>
+                    <div class="metric-sub" id="m-inicial-sub">Prêmio {{ 'recebido (crédito)' if m.posInicial >= 0 else 'pago (débito)' }}</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-label">Ganho Máx.</div>
+                    <div class="metric-value {{ color_pnl(m.ganhoMax) }}" id="m-ganho">{{ brl(m.ganhoMax) }}</div>
+                    <div class="metric-sub" id="m-ganho-sub">{% if m.ganhoMax < 1e9 %}Limitado{% else %}Ilimitado{% endif %}</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-label">Perda Máx.</div>
+                    <div class="metric-value {{ color_pnl(m.perdaMax) }}" id="m-perda">{{ brl(m.perdaMax) }}</div>
+                    <div class="metric-sub" id="m-perda-sub">{% if m.perdaMax > -1e9 %}Limitada{% else %}Ilimitada{% endif %}</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-label">Break-even(s)</div>
+                    <div class="metric-value neu" id="m-be1">{% if m.breakEvens %}{% for v in m.breakEvens %}{{ brl(v) }}{% if not loop.last %} / {% endif %}{% endfor %}{% else %}—{% endif %}</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-label">Margem Aprox.</div>
+                    <div class="metric-value" id="m-margem">{{ brl(m.margem) }}</div>
+                    <div class="metric-sub" id="m-margem-sub">Garantia estimada</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-label">Prêmio Líquido</div>
+                    <div class="metric-value {{ color_pnl(m.premioLiq) }}" id="m-premio">{{ brl(m.premioLiq) }}</div>
+                    <div class="metric-sub" id="m-premio-sub">{{ qtd_total }} opções no total</div>
+                </div>
+            </div>
+
+            <div class="metric" style="max-width:280px;">
+                <div class="metric-label">Preço atual do ativo</div>
+                <div class="metric-value mono" id="m-preco">{% if estrutura.precoAtual is not none %}{{ brl(estrutura.precoAtual) }}{% else %}—{% endif %}</div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">Gregas Consolidadas <span style="font-weight:400;color:var(--text3);font-size:10px;margin-left:8px;">calculadas via Black-Scholes quando IV informado</span></div>
+                <div class="greeks-grid">
+                    <div class="greek-box">
+                        <div class="greek-name">Delta (Δ)</div>
+                        <div class="greek-val {% if m.delta is not none %}{% if m.delta > 0 %}pos{% elif m.delta < 0 %}neg{% endif %}{% endif %}" id="g-delta">{% if m.delta is not none %}{{ '%.2f'|format(m.delta) }}{% else %}—{% endif %}</div>
+                    </div>
+                    <div class="greek-box">
+                        <div class="greek-name">Gamma (Γ)</div>
+                        <div class="greek-val" id="g-gamma">{% if m.gamma is not none %}{{ '%.4f'|format(m.gamma) }}{% else %}—{% endif %}</div>
+                    </div>
+                    <div class="greek-box">
+                        <div class="greek-name">Theta (Θ) /dia</div>
+                        <div class="greek-val {% if m.theta is not none %}{% if m.theta > 0 %}pos{% elif m.theta < 0 %}neg{% endif %}{% endif %}" id="g-theta">{% if m.theta is not none %}{{ '%.4f'|format(m.theta) }}{% else %}—{% endif %}</div>
+                    </div>
+                    <div class="greek-box">
+                        <div class="greek-name">Vega (ν) /1%IV</div>
+                        <div class="greek-val" id="g-vega">{% if m.vega is not none %}{{ '%.4f'|format(m.vega) }}{% else %}—{% endif %}</div>
+                    </div>
+                    <div class="greek-box">
+                        <div class="greek-name">Rho (ρ) /1%</div>
+                        <div class="greek-val" id="g-rho">{% if m.rho is not none %}{{ '%.4f'|format(m.rho) }}{% else %}—{% endif %}</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title" style="margin:0">Posições</div>
+                    <a class="btn btn-sm btn-primary" href="{{ url_for('simulador', eid=estrutura.id, modal_leg=1) }}">+ Perna</a>
+                </div>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Operação</th>
+                                <th>Tipo</th>
+                                <th>Qtd</th>
+                                <th>Strike</th>
+                                <th>Ticker</th>
+                                <th>Vencimento</th>
+                                <th>Prêmio Pago</th>
+                                <th>Preço BS</th>
+                                <th>IV</th>
+                                <th>Delta</th>
+                                <th>P&amp;L Est.</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody id="legs-tbody">
+                            {% if not leg_rows %}
+                            <tr><td colspan="12" class="empty-cell">Nenhuma perna adicionada. Clique em "+ Perna".</td></tr>
+                            {% else %}
+                            {% for row in leg_rows %}
+                            {% set leg = row.leg %}
+                            <tr>
+                                <td>{% if leg.operacao == 'compra' %}<span class="tag tag-buy">Compra</span>{% else %}<span class="tag tag-sell">Venda</span>{% endif %}</td>
+                                <td>{% if leg.tipo == 'call' %}<span class="tag tag-call">CALL</span>{% else %}<span class="tag tag-put">PUT</span>{% endif %}</td>
+                                <td class="mono">{{ leg.qtd }}</td>
+                                <td class="mono">{{ brl(leg.strike) }}</td>
+                                <td class="ticker-cell">{{ leg.ticker or '—' }}</td>
+                                <td>{{ fmt_date(leg.vencimento) }}</td>
+                                <td class="mono">{{ brl(leg.premio) }}</td>
+                                <td class="mono">{{ row.bs_preco_str }}</td>
+                                <td class="mono">{{ row.iv_str }}</td>
+                                <td class="mono">{{ row.delta_disp }}</td>
+                                <td class="mono {{ row.pnl_cls }}">{{ row.pnl_str }}</td>
+                                <td>
+                                    <div class="action-btns">
+                                        <a class="btn btn-icon" title="Editar" href="{{ url_for('simulador', eid=estrutura.id, modal_leg=1, edit_leg=leg.id) }}">✎</a>
+                                        <form method="post" action="{{ url_for('delete_leg', lid=leg.id) }}" style="display:inline" onsubmit="return confirm('Excluir esta perna?');">
+                                            <input type="hidden" name="estrutura_id" value="{{ estrutura.id }}">
+                                            <button type="submit" class="btn btn-icon btn-danger" title="Excluir">✕</button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title" style="margin:0">Gráfico de Payoff</div>
+                    <form method="post" action="{{ url_for('simulador', eid=estrutura.id, q=search_q or none) }}" style="display:inline;">
+                        <input type="hidden" name="action" value="toggle_bs">
+                        <label class="chart-toggle">
+                            <input type="checkbox" name="show_current" value="1" {% if show_current_bs %}checked{% endif %} onchange="this.form.submit()">
+                            Curva atual (Black-Scholes)
+                        </label>
+                    </form>
+                </div>
+                <div class="chart-info" id="chart-info">
+                    <span>Informe <b>IV%</b> nas pernas para ver a curva atual (Black-Scholes)</span>
+                </div>
+                <div class="chart-legend">
+                    <div class="chart-legend-item"><div class="chart-legend-dot" style="background:#4ade80"></div> Lucro no vencimento</div>
+                    <div class="chart-legend-item"><div class="chart-legend-dot" style="background:#f87171"></div> Perda no vencimento</div>
+                    <div class="chart-legend-item"><div class="chart-legend-dot" style="background:#fbbf24;height:3px;border-radius:0;margin-top:4px;"></div> Curva atual (BS)</div>
+                    <div class="chart-legend-item"><div class="chart-legend-dot" style="background:#60a5fa;height:2px;border-radius:0;margin-top:4px;"></div> Preço spot</div>
+                </div>
+                <div class="chart-wrap" style="min-height:420px;">
+                    {% if chart_html %}{{ chart_html|safe }}{% else %}<div class="empty-cell">Sem dados para o gráfico.</div>{% endif %}
+                </div>
+                <div class="chart-note">
+                    A linha sólida representa o P&L no vencimento (valor intrínseco − prêmio).
+                    A linha tracejada (BS) mostra o P&L atual considerando tempo e volatilidade.
+                    Theta negativo → curva atual abaixo da expiração.
+                </div>
+            </div>
+
+        </div>
+        {% endif %}
+
+    </main>
+</div>
+
+<!-- Modal estrutura -->
+<div class="modal-overlay{% if modal_est %} open{% endif %}" id="modal-estrutura">
+    <div class="modal">
+        <div class="modal-title">
+            <span id="modal-est-title">{% if edit_est_id %}Editar Estrutura{% else %}Nova Estrutura{% endif %}</span>
+            <a class="btn btn-icon" href="{{ url_for('simulador', eid=selected_id, q=search_q or none) if selected_id else url_for('simulador', q=search_q or none) }}">✕</a>
+        </div>
+        <form method="post" action="{{ url_for('save_estrutura') }}">
+            {% if edit_est_id %}<input type="hidden" name="id" value="{{ edit_est_id }}">{% endif %}
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Nome <span>*</span></label>
+                    <input name="nome" id="est-nome" required placeholder="Ex: Bull Spread PETR4 Abril" value="{{ est_form.nome or '' }}">
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Ativo / Ticker <span>*</span></label>
+                        <input name="ativo" id="est-ativo" required placeholder="PETR4" value="{{ est_form.ativo or '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Tipo de Estratégia</label>
+                        <select name="tipo" id="est-tipo">
+                            {% for opt in ['Bull Spread','Bear Spread','Butterfly','Iron Butterfly','Condor','Iron Condor','Straddle','Strangle','Covered Call','Protective Put','Calendar Spread','Diagonal Spread','Ratio Spread','Personalizada'] %}
+                            <option {% if (est_form.tipo or 'Bull Spread') == opt %}selected{% endif %}>{{ opt }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Preço Atual do Ativo (R$)</label>
+                        <input name="preco" id="est-preco" type="number" step="0.01" placeholder="18.50" value="{{ est_form.precoAtual or '' }}">
+                        <div class="input-hint">Usado no cálculo de payoff e gregas</div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Data Alvo (Vencimento)</label>
+                        <input name="data_venc" id="est-venc" type="date" value="{{ est_form.dataVenc or '' }}">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Observações</label>
+                    <input name="obs" id="est-obs" placeholder="Motivo da entrada, contexto de mercado…" value="{{ est_form.obs or '' }}">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <a class="btn" href="{{ url_for('simulador', eid=selected_id, q=search_q or none) if selected_id else url_for('simulador', q=search_q or none) }}">Cancelar</a>
+                <button type="submit" class="btn btn-primary">Salvar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal perna -->
+{% if estrutura %}
+<div class="modal-overlay{% if modal_leg %} open{% endif %}" id="modal-leg">
+    <div class="modal modal-lg">
+        <div class="modal-title">
+            <span id="modal-leg-title">{% if edit_leg_id %}Editar Perna{% else %}Adicionar Perna{% endif %}</span>
+            <a class="btn btn-icon" href="{{ url_for('simulador', eid=estrutura.id, q=search_q or none) }}">✕</a>
+        </div>
+        <form method="post" action="{{ url_for('save_leg', eid=estrutura.id) }}" id="form-leg">
+            {% if edit_leg_id %}<input type="hidden" name="id" value="{{ edit_leg_id }}">{% endif %}
+            <div class="modal-body">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Operação</label>
+                        <select name="operacao" id="leg-op">
+                            <option value="compra" {% if (leg_form.operacao or 'compra') == 'compra' %}selected{% endif %}>Compra (Long)</option>
+                            <option value="venda" {% if leg_form.operacao == 'venda' %}selected{% endif %}>Venda (Short)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Tipo</label>
+                        <select name="tipo" id="leg-tipo">
+                            <option value="call" {% if (leg_form.tipo or 'call') == 'call' %}selected{% endif %}>CALL</option>
+                            <option value="put" {% if leg_form.tipo == 'put' %}selected{% endif %}>PUT</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Quantidade (contratos) <span>*</span></label>
+                        <input name="qtd" id="leg-qtd" type="number" step="1" min="1" value="{{ leg_form.qtd or 100 }}">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Strike (R$) <span>*</span></label>
+                        <input name="strike" id="leg-strike" type="number" step="0.01" required placeholder="18.56" value="{{ leg_form.strike or '' }}">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Ticker / Série</label>
+                        <input name="ticker" id="leg-ticker" placeholder="PETRD186" value="{{ leg_form.ticker or '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Vencimento</label>
+                        <input name="vencimento" id="leg-venc" type="date" value="{{ leg_form.vencimento or '' }}">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Prêmio Pago/Recebido (R$) <span>*</span></label>
+                        <input name="premio" id="leg-premio" type="number" step="0.0001" placeholder="0.76" value="{{ leg_form.premio if leg_form.premio is not none else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">IV — Volatilidade Implícita (%) <span class="iv-badge">Auto-calcula gregas ↓</span></label>
+                        <input name="iv" id="leg-iv" type="number" step="0.1" placeholder="30.5" value="{{ leg_form.iv if leg_form.iv is not none else '' }}">
+                    </div>
+                </div>
+                <div class="form-divider"></div>
+                <div class="form-section">Gregas Manuais (opcional — sobrescritos se IV informado)</div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Delta (Δ)</label>
+                        <input name="delta" id="leg-delta" type="number" step="0.001" placeholder="-1 a +1" value="{{ leg_form.delta if leg_form.delta is not none else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Gamma (Γ)</label>
+                        <input name="gamma" id="leg-gamma" type="number" step="0.0001" value="{{ leg_form.gamma if leg_form.gamma is not none else '' }}">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Theta (Θ) por dia</label>
+                        <input name="theta" id="leg-theta" type="number" step="0.0001" value="{{ leg_form.theta if leg_form.theta is not none else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Vega (ν) por 1%</label>
+                        <input name="vega" id="leg-vega" type="number" step="0.0001" value="{{ leg_form.vega if leg_form.vega is not none else '' }}">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <a class="btn" href="{{ url_for('simulador', eid=estrutura.id, q=search_q or none) }}">Cancelar</a>
+                <button type="submit" class="btn btn-primary">Salvar Perna</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+{% if estrutura %}
+<script>
+    const ESTRUTURA_PRECO = {{ estrutura.precoAtual|tojson }};
+    document.getElementById('leg-iv') && document.getElementById('leg-iv').addEventListener('input', function () {
+        const S0 = parseFloat(ESTRUTURA_PRECO) || 0;
+        const K = parseFloat(document.getElementById('leg-strike').value) || 0;
+        const iv = parseFloat(document.getElementById('leg-iv').value) || 0;
+        const tipo = document.getElementById('leg-tipo').value;
+        const venc = document.getElementById('leg-venc').value;
+        if (!S0 || !K || !iv || !venc) return;
+        fetch('{{ url_for("preview_greeks") }}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ preco_atual: S0, strike: K, iv: iv, tipo: tipo, venc: venc })
+        }).then(r => r.json()).then(d => {
+            if (d.delta == null) return;
+            document.getElementById('leg-delta').value = Number(d.delta).toFixed(4);
+            document.getElementById('leg-gamma').value = Number(d.gamma).toFixed(6);
+            document.getElementById('leg-theta').value = Number(d.theta).toFixed(6);
+            document.getElementById('leg-vega').value = Number(d.vega).toFixed(6);
+            const prem = document.getElementById('leg-premio');
+            if (prem && !prem.value && d.preco_sugerido != null) prem.value = Number(d.preco_sugerido).toFixed(4);
+        }).catch(function () {});
+    });
+</script>
+{% endif %}
+{% endblock %}

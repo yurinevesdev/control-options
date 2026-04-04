@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% set active_page = 'historico' %}
+
+{% block body %}
+<div id="page-historico" class="page" style="display:block">
+    <div class="page-content">
+        <div class="card" style="margin-bottom:16px;">
+            <div class="card-title">Exportar / importar dados (CSV)</div>
+            <p style="color:var(--text2);font-size:13px;margin-bottom:12px;">
+                O export gera um ficheiro ZIP com <code class="mono">estruturas.csv</code> e <code class="mono">legs.csv</code> (UTF-8, separador vírgula).
+                Na importação, os registos são <strong>adicionados</strong> à base atual (novos IDs); as pernas ligam-se às estruturas do ficheiro pelo <code class="mono">id</code> / <code class="mono">estrutura_id</code>.
+            </p>
+            <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:14px;">
+                <a class="btn btn-primary btn-sm" href="{{ url_for('export_csv') }}">Descarregar ZIP</a>
+            </div>
+            <form method="post" action="{{ url_for('import_csv') }}" enctype="multipart/form-data" class="form-row" style="flex-wrap:wrap;gap:12px;align-items:flex-end;">
+                <div class="form-group" style="min-width:200px;">
+                    <label class="form-label">Importar ZIP</label>
+                    <input type="file" name="zip_csv" accept=".zip,application/zip">
+                </div>
+                <div class="form-group" style="min-width:200px;">
+                    <label class="form-label">ou <code class="mono">estruturas.csv</code></label>
+                    <input type="file" name="estruturas_csv" accept=".csv,text/csv">
+                </div>
+                <div class="form-group" style="min-width:200px;">
+                    <label class="form-label">e <code class="mono">legs.csv</code></label>
+                    <input type="file" name="legs_csv" accept=".csv,text/csv">
+                </div>
+                <button type="submit" class="btn btn-sm btn-primary">Importar</button>
+            </form>
+        </div>
+        <div class="card">
+            <div class="card-title">Histórico de Estruturas</div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Nome</th>
+                            <th>Ativo</th>
+                            <th>Tipo</th>
+                            <th>Criado em</th>
+                            <th>Pernas</th>
+                            <th>Prêmio Líq.</th>
+                            <th>Ganho Máx.</th>
+                            <th>Vencimento</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="hist-tbody">
+                        {% if not rows %}
+                        <tr><td colspan="9" class="empty-cell">Nenhuma estrutura cadastrada.</td></tr>
+                        {% else %}
+                        {% for row in rows %}
+                        {% set est = row.est %}
+                        {% set m = row.metrics %}
+                        {% set dias = dias_ate_venc(est.dataVenc) %}
+                        <tr>
+                            <td style="font-weight:500">{{ est.nome }}</td>
+                            <td><span class="tag tag-call">{{ est.ativo or '?' }}</span></td>
+                            <td>{{ est.tipo or '—' }}</td>
+                            <td>{{ fmt_date((est.criadoEm or '')[:10]) }}</td>
+                            <td class="mono">{{ row.legs|length }}</td>
+                            <td class="mono {{ color_pnl(m.premioLiq) }}">{{ brl(m.premioLiq) }}</td>
+                            <td class="mono {{ color_pnl(m.ganhoMax) }}">{{ brl(m.ganhoMax) }}</td>
+                            <td class="mono {% if dias is none %}{% elif dias < 0 %}neg{% elif dias <= 7 %}amber{% else %}pos{% endif %}">
+                                {% if dias is none %}—{% elif dias < 0 %}Vencido{% elif dias <= 7 %}{{ dias }}d ⚠{% else %}{{ dias }}d{% endif %}
+                            </td>
+                            <td>
+                                <a class="btn btn-sm" href="{{ url_for('simulador', eid=est.id) }}">Ver ↗</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

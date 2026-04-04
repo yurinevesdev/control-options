@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Eagle System — Simulador de Opções{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Syne:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    {% block head_extra %}{% endblock %}
+</head>
+
+<body>
+    <header class="header">
+        <div class="logo">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 2L3 7v10l9 5 9-5V7L12 2z" stroke="#4ade80" stroke-width="1.5" stroke-linejoin="round" />
+                <path d="M12 2v20M3 7l9 5 9-5" stroke="#4ade80" stroke-width="1.5" stroke-linejoin="round" />
+            </svg>
+            Eagle System
+        </div>
+        <nav class="nav">
+            <a class="nav-btn{% if active_page == 'simulador' %} active{% endif %}" href="{{ url_for('simulador') }}">Simulador</a>
+            <a class="nav-btn{% if active_page == 'historico' %} active{% endif %}" href="{{ url_for('historico') }}">Histórico</a>
+            <a class="nav-btn{% if active_page == 'dashboard' %} active{% endif %}" href="{{ url_for('dashboard') }}">Dashboard</a>
+        </nav>
+        <div class="header-right">
+            <span class="db-badge" id="db-badge">● DB Ativo</span>
+        </div>
+    </header>
+
+    <div id="toast-container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for cat, msg in messages %}
+        <div class="toast toast-{{ cat }} show" data-toast>
+            <span class="toast-icon">{% if cat == 'success' %}✓{% elif cat == 'error' %}✕{% elif cat == 'warning' %}⚠{% else %}ℹ{% endif %}</span>
+            <span>{{ msg }}</span>
+        </div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+    </div>
+
+    {% block body %}{% endblock %}
+
+    <script>
+        document.querySelectorAll('[data-toast]').forEach(function (el) {
+            setTimeout(function () { el.classList.remove('show'); setTimeout(function () { el.remove(); }, 300); }, 3000);
+        });
+        document.addEventListener('click', function (e) {
+            if (e.target.classList.contains('modal-overlay')) e.target.classList.remove('open');
+        });
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') document.querySelectorAll('.modal-overlay.open').forEach(function (m) { m.classList.remove('open'); });
+        });
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+
+</html>
