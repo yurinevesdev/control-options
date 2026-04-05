@@ -19,7 +19,7 @@
             </div>
             <div class="metric">
                 <div class="metric-label">Prêmio Débito</div>
-                <div class="metric-value neg" id="dash-debito">{{ brl(abs(debito)) }}</div>
+                <div class="metric-value neg" id="dash-debito">{{ brl(debito) }}</div>
             </div>
         </div>
         <div class="dash-metrics" style="grid-template-columns: 1fr 1fr;">
@@ -36,13 +36,15 @@
             <div class="card">
                 <div class="card-title">Distribuição por Tipo</div>
                 <div class="chart-container">
-                    {% if chart_tipos %}{{ chart_tipos|safe }}{% else %}<div class="empty-cell">Sem dados.</div>{% endif %}
+                    {% if chart_tipos %}{{ chart_tipos|safe }}{% else %}<div class="empty-cell">Sem dados.</div>{% endif
+                    %}
                 </div>
             </div>
             <div class="card">
                 <div class="card-title">Prêmio por Estrutura</div>
                 <div class="chart-container">
-                    {% if chart_premios %}{{ chart_premios|safe }}{% else %}<div class="empty-cell">Sem dados.</div>{% endif %}
+                    {% if chart_premios %}{{ chart_premios|safe }}{% else %}<div class="empty-cell">Sem dados.</div>{%
+                    endif %}
                 </div>
             </div>
         </div>

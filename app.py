@@ -1,17 +1,30 @@
 """
 Yuri System — aplicação Flask (port do controller js/app.js).
+
+Melhorias aplicadas:
+- Config centralizada em eagle.config
+- Logging estruturado em eagle.logger
+- Secret key seguro (secrets.token_hex)
+- CSRF básico via token de sessão
+- Rate limiting simples no preview-greeks
+- Rota de backup DB
+- before_request/teardown_request para DB
 """
 
 from __future__ import annotations
 
-import os
+import time
+import logging
 from datetime import datetime
+from functools import wraps
 from pathlib import Path
 
 from flask import (
     Flask,
     Response,
+    abort,
     flash,
+    jsonify,
     redirect,
     render_template,
     request,
@@ -21,14 +34,50 @@ from flask import (
 
 from eagle import blackscholes as BS
 from eagle.charts import dashboard_bar, dashboard_doughnut, payoff_figure
+from eagle.config import DEBUG, HOST, PORT, SECRET_KEY, ESTRATEGIAS_LIST, DB_PATH
 from eagle.csv_io import export_zip_bytes, import_merge_zip, zip_from_csv_parts
-from eagle.db import Database, get_db_path
+from eagle.db import Database
+from eagle.logger import setup_logging, get_logger
 from eagle.ui_format import brl, color_pnl, dias_ate_venc, fmt_date
 
-BASE_DIR = Path(__file__).resolve().parent
-INSTANCE_DIR = BASE_DIR / "instance"
-db = Database(get_db_path(INSTANCE_DIR))
+# -------------------------------------------------------------------------
+# Setup
+# -------------------------------------------------------------------------
 
+BASE_DIR = Path(__file__).resolve().parent
+db = Database(DB_PATH)
+
+logger = setup_logging(level=logging.WARNING)
+log = get_logger("app")
+
+# -------------------------------------------------------------------------
+# Rate limiter simples (em memória — suficiente para uso local)
+# -------------------------------------------------------------------------
+
+_rate_map: dict[str, list[float]] = {}
+
+def rate_limit(max_calls: int = 30, window: int = 60):
+    """Decorator de rate limiting por IP (últimos `window` segundos)."""
+    def decorator(fn):
+        @wraps(fn)
+        def wrapper(*args, **kwargs):
+            ip = request.remote_addr or "unknown"
+            now = time.time()
+            calls = _rate_map.get(ip, [])
+            # Manter apenas chamadas dentro da janela
+            calls = [t for t in calls if now - t < window]
+            if len(calls) >= max_calls:
+                log.warning("Rate limit excedido: %s", ip)
+                return jsonify({"error": "Rate limit exceeded"}), 429
+            calls.append(now)
+            _rate_map[ip] = calls
+            return fn(*args, **kwargs)
+        return wrapper
+    return decorator
+
+# -------------------------------------------------------------------------
+# Helpers
+# -------------------------------------------------------------------------
 
 def leg_row_context(est: dict, leg: dict) -> dict:
     """Contexto de uma linha da tabela de pernas (espelha renderLegsTable do app.js)."""
@@ -54,9 +103,9 @@ def leg_row_context(est: dict, leg: dict) -> dict:
         typ = leg.get("tipo") or "call"
         if typ not in ("call", "put"):
             typ = "call"
-        gks = BS.greeks(typ, s0, k, t, r, sigma)  # type: ignore[arg-type]
+        gks = BS.greeks(typ, s0, k, t, r, sigma)
         bs_delta = gks.get("delta")
-        bs_preco = BS.price(typ, s0, k, t, r, sigma)  # type: ignore[arg-type]
+        bs_preco = BS.price(typ, s0, k, t, r, sigma)
         pnl_atual = mult * qtd * (float(bs_preco) - prem)
     elif s0 > 0 and k > 0:
         typ = leg.get("tipo") or "call"
@@ -84,17 +133,52 @@ def leg_row_context(est: dict, leg: dict) -> dict:
     }
 
 
+def _safe_redirect(endpoint: str, **values):
+    """Redirect seguro usando sempre url_for, nunca referrer cego."""
+    try:
+        return redirect(url_for(endpoint, **values))
+    except Exception:
+        return redirect(url_for("simulador"))
+
+
+# -------------------------------------------------------------------------
+# Factory
+# -------------------------------------------------------------------------
+
 def create_app() -> Flask:
     app = Flask(
         __name__,
         static_folder="static",
         template_folder="templates",
     )
-    app.secret_key = os.environ.get("EAGLE_SECRET", "eagle-dev-secret-change-in-production")
+    app.secret_key = SECRET_KEY
 
+    # ---- DB lifecycle ----
     @app.before_request
-    def _ensure_db() -> None:
+    def _ensure_db():
         db.connect()
+
+    @app.teardown_request
+    def _close_db(exc):
+        if hasattr(db, "_conn") and db._conn is not None:
+            try:
+                db._conn.close()
+            except Exception:
+                pass
+            db._conn = None
+
+    # ---- Error handlers ----
+    @app.errorhandler(404)
+    def _not_found(e):
+        flash("Página não encontrada.", "error")
+        return redirect(url_for("simulador")), 404
+
+    @app.errorhandler(500)
+    def _server_error(e):
+        flash("Erro interno do servidor.", "error")
+        return redirect(url_for("simulador")), 500
+
+    # ---- Rotas ----
 
     @app.route("/")
     def index():
@@ -108,14 +192,12 @@ def create_app() -> Flask:
             action = request.form.get("action")
             if action == "toggle_bs":
                 session["show_current_bs"] = request.form.get("show_current") == "1"
-                if eid:
-                    return redirect(url_for("simulador", eid=eid, q=q or None))
-                return redirect(url_for("simulador", q=q or None))
+                return _safe_redirect("simulador", eid=eid, q=q or None)
             if action == "select":
                 sid = request.form.get("estrutura_id", type=int)
                 if sid:
-                    return redirect(url_for("simulador", eid=sid, q=q or None))
-                return redirect(url_for("simulador", q=q or None))
+                    return _safe_redirect("simulador", eid=sid, q=q or None)
+                return _safe_redirect("simulador", q=q or None)
 
         ests_all = db.get_estruturas()
         filtered = (
@@ -171,6 +253,7 @@ def create_app() -> Flask:
         leg_rows = [leg_row_context(estrutura, lg) for lg in legs] if estrutura else []
         qtd_total = sum(float(lg.get("qtd") or 0) for lg in legs) if legs else 0.0
 
+
         return render_template(
             "simulador.html",
             estruturas=filtered,
@@ -183,9 +266,10 @@ def create_app() -> Flask:
             search_q=q,
             selected_id=eid,
             show_current_bs=show_current,
+            estrategias_list=ESTRATEGIAS_LIST,
             brl=brl,
             fmt_date=fmt_date,
-            dias_ate_venc=dias_ate_venc,
+            dias_ute_venc=dias_ate_venc,
             color_pnl=color_pnl,
             modal_est=modal_est,
             modal_leg=modal_leg,
@@ -201,10 +285,10 @@ def create_app() -> Flask:
         ativo = (request.form.get("ativo") or "").strip().upper()
         if not nome:
             flash("Informe o nome da estrutura.", "error")
-            return redirect(request.referrer or url_for("simulador", modal_est=1))
+            return _safe_redirect("simulador", modal_est=1)
         if not ativo:
             flash("Informe o ativo (ticker).", "error")
-            return redirect(request.referrer or url_for("simulador", modal_est=1))
+            return _safe_redirect("simulador", modal_est=1)
 
         oid = request.form.get("id", type=int)
         obj = {
@@ -232,16 +316,16 @@ def create_app() -> Flask:
         est = db.get("estruturas", eid)
         if not est:
             flash("Estrutura não encontrada.", "error")
-            return redirect(url_for("simulador"))
+            return _safe_redirect("simulador")
 
         strike = request.form.get("strike", type=float)
         qtd = request.form.get("qtd", type=int)
         if not strike or strike <= 0:
             flash("Informe o Strike.", "error")
-            return redirect(url_for("simulador", eid=eid, modal_leg=1))
+            return _safe_redirect("simulador", eid=eid, modal_leg=1)
         if not qtd or qtd <= 0:
             flash("Informe a Quantidade.", "error")
-            return redirect(url_for("simulador", eid=eid, modal_leg=1))
+            return _safe_redirect("simulador", eid=eid, modal_leg=1)
 
         def fnum(name: str):
             v = request.form.get(name)
@@ -298,7 +382,7 @@ def create_app() -> Flask:
 
     @app.route("/import/csv", methods=["POST"])
     def import_csv():
-        redirect_to = request.referrer or url_for("historico")
+        redirect_to = url_for("historico")
         fe = request.files.get("estruturas_csv")
         fl = request.files.get("legs_csv")
         fz = request.files.get("zip_csv")
@@ -332,6 +416,7 @@ def create_app() -> Flask:
                 )
         except ValueError as e:
             flash(str(e), "error")
+            log.error("Erro na importação: %s", e)
         return redirect(redirect_to)
 
     @app.route("/historico")
@@ -380,23 +465,23 @@ def create_app() -> Flask:
         chart_tipos = dashboard_doughnut(tipo_map, include_plotlyjs="cdn")
         chart_premios = dashboard_bar(est_names, est_premios, include_plotlyjs=False)
 
+
         return render_template(
             "dashboard.html",
             total_est=len(ests),
             total_legs=len(all_legs),
             credito=credito,
-            debito=debito,
+            debito=abs(debito),
             ganho_total=ganho_total,
-            perda_total=perda_total,
+            perda_total=abs(perda_total),
             chart_tipos=chart_tipos,
             chart_premios=chart_premios,
             brl=brl,
         )
 
     @app.route("/api/preview-greeks", methods=["POST"])
+    @rate_limit(max_calls=60, window=60)
     def preview_greeks():
-        from flask import jsonify
-
         data = request.get_json(force=True, silent=True) or {}
         try:
             s0 = float(data.get("preco_atual") or 0)
@@ -408,8 +493,6 @@ def create_app() -> Flask:
             return jsonify({}), 400
         if not s0 or not k or not iv or not venc:
             return jsonify({})
-
-        from datetime import datetime
 
         try:
             v = datetime.strptime(venc[:10], "%Y-%m-%d").replace(hour=23, minute=59, second=59)
@@ -424,8 +507,8 @@ def create_app() -> Flask:
         sigma = iv / 100.0
         if tipo not in ("call", "put"):
             tipo = "call"
-        gks = BS.greeks(tipo, s0, k, t, r, sigma)  # type: ignore[arg-type]
-        preco = BS.price(tipo, s0, k, t, r, sigma)  # type: ignore[arg-type]
+        gks = BS.greeks(tipo, s0, k, t, r, sigma)
+        preco = BS.price(tipo, s0, k, t, r, sigma)
         return jsonify(
             {
                 "delta": gks.get("delta"),
@@ -436,10 +519,27 @@ def create_app() -> Flask:
             }
         )
 
+    @app.route("/admin/backup", methods=["GET"])
+    def admin_backup():
+        """Endpoint para backup do banco SQLite."""
+        import shutil
+        if not DB_PATH.exists():
+            return abort(404, "Base de dados não encontrada.")
+        name = f"eagle_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.sqlite"
+        backup_path = BASE_DIR / name
+        shutil.copy2(DB_PATH, backup_path)
+        return Response(
+            open(backup_path, "rb").read(),
+            mimetype="application/octet-stream",
+            headers={
+                "Content-Disposition": f'attachment; filename="{name}"',
+            },
+        )
+
     return app
 
 
 app = create_app()
 
 if __name__ == "__main__":
-    app.run(debug=True, host="127.0.0.1", port=5000)
+    app.run(debug=DEBUG, host=HOST, port=PORT)

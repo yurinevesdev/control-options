@@ -7,7 +7,9 @@
     <title>{% block title %}Yuri System — Simulador de Opções{% endblock %}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Syne:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Syne:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     {% block head_extra %}{% endblock %}
 </head>
@@ -22,12 +24,17 @@
             Yuri System
         </div>
         <nav class="nav">
-            <a class="nav-btn{% if active_page == 'simulador' %} active{% endif %}" href="{{ url_for('simulador') }}">Simulador</a>
-            <a class="nav-btn{% if active_page == 'historico' %} active{% endif %}" href="{{ url_for('historico') }}">Histórico</a>
-            <a class="nav-btn{% if active_page == 'dashboard' %} active{% endif %}" href="{{ url_for('dashboard') }}">Dashboard</a>
+            <a class="nav-btn{% if active_page == 'simulador' %} active{% endif %}"
+                href="{{ url_for('simulador') }}">Simulador</a>
+            <a class="nav-btn{% if active_page == 'historico' %} active{% endif %}"
+                href="{{ url_for('historico') }}">Histórico</a>
+            <a class="nav-btn{% if active_page == 'dashboard' %} active{% endif %}"
+                href="{{ url_for('dashboard') }}">Dashboard</a>
         </nav>
         <div class="header-right">
             <span class="db-badge" id="db-badge">● DB Ativo</span>
+            <a href="{{ url_for('admin_backup') }}" title="Backup DB"
+                style="color: var(--text2); text-decoration: none; font-size: 12px;">⬇</a>
         </div>
     </header>
 
@@ -35,8 +42,9 @@
         {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
         {% for cat, msg in messages %}
-        <div class="toast toast-{{ cat }} show" data-toast>
-            <span class="toast-icon">{% if cat == 'success' %}✓{% elif cat == 'error' %}✕{% elif cat == 'warning' %}⚠{% else %}ℹ{% endif %}</span>
+        <div class="toast toast-{{ cat }} show" data-toast role="alert">
+            <span class="toast-icon">{% if cat == 'success' %}✓{% elif cat == 'error' %}✕{% elif cat == 'warning' %}⚠{%
+                else %}ℹ{% endif %}</span>
             <span>{{ msg }}</span>
         </div>
         {% endfor %}
@@ -47,14 +55,46 @@
     {% block body %}{% endblock %}
 
     <script>
+        // Auto-dismiss toasts (5s)
         document.querySelectorAll('[data-toast]').forEach(function (el) {
-            setTimeout(function () { el.classList.remove('show'); setTimeout(function () { el.remove(); }, 300); }, 3000);
+            setTimeout(function () {
+                el.classList.remove('show');
+                setTimeout(function () { if (el.parentNode) el.remove(); }, 300);
+            }, 5000);
         });
+
+        // Fechar modais
         document.addEventListener('click', function (e) {
             if (e.target.classList.contains('modal-overlay')) e.target.classList.remove('open');
         });
         document.addEventListener('keydown', function (e) {
-            if (e.key === 'Escape') document.querySelectorAll('.modal-overlay.open').forEach(function (m) { m.classList.remove('open'); });
+            if (e.key === 'Escape') {
+                document.querySelectorAll('.modal-overlay.open').forEach(function (m) { m.classList.remove('open'); });
+            }
+        });
+
+        // Atalho Ctrl+S para submeter formulário visível
+        document.addEventListener('keydown', function (e) {
+            if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                var modals = document.querySelectorAll('.modal-overlay.open');
+                if (modals.length) {
+                    e.preventDefault();
+                    var form = modals[modals.length - 1].querySelector('form');
+                    if (form) form.requestSubmit();
+                }
+            }
+        });
+
+        // Desabilitar botão ao submeter (evita duplo clique)
+        document.querySelectorAll('form[method="POST"]').forEach(function (f) {
+            f.addEventListener('submit', function () {
+                var btn = this.querySelector('button[type="submit"]');
+                if (btn && !btn.disabled) {
+                    btn.disabled = true;
+                    btn.dataset.originalText = btn.textContent;
+                    btn.textContent = 'Salvando...';
+                }
+            });
         });
     </script>
     {% block scripts %}{% endblock %}
