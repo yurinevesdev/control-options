@@ -1,23 +1,24 @@
 {% extends "base.html" %}
 {% set active_page = 'sugestoes' %}
 
-{% block title %}Sugestões de Estruturas — Yuri System{% endblock %}
+{% block title %}Sugestoes de Estruturas Yuri System{% endblock %}
 
 {% block body %}
 <div class="page-content">
     <div class="page-header">
-        <h1>💡 Sugestões de Estruturas</h1>
-        <p>Análise automática das melhores estratégias baseado nos dados de opções disponíveis.</p>
+        <h1>Sugestoes de Estruturas</h1>
+        <p>Analise automatica das melhores estrategias baseado nos dados de opcoes do OpLab e indicadores tecnicos do
+            Yahoo Finance.</p>
     </div>
 
     <div class="sugestoes-controls">
         <div class="form-group-inline">
             <label for="ticker-input" class="form-label-inline">Ativo (Ticker)</label>
-            <input type="text" id="ticker-input" class="ticker-input" placeholder="Ex: PETR4" value="PETR4" uppercase>
+            <input type="text" id="ticker-input" class="ticker-input" placeholder="Ex: PETR4" value="PETR4">
         </div>
 
         <div class="form-group-inline">
-            <label for="estrategia-select" class="form-label-inline">Estratégia</label>
+            <label for="estrategia-select" class="form-label-inline">Estrategia</label>
             <select id="estrategia-select">
                 {% for val, label in estrategias %}
                 <option value="{{ val }}" {% if val=='auto' %}selected{% endif %}>{{ label }}</option>
@@ -26,16 +27,11 @@
         </div>
 
         <div class="form-group-inline">
-            <label for="preco-input" class="form-label-inline">Preço Atual</label>
-            <input type="number" id="preco-input" class="form-input" step="0.01" placeholder="Automático">
-        </div>
-
-        <div class="form-group-inline">
             <label for="dias-input" class="form-label-inline">Vencimento (dias)</label>
             <div class="dias-range">
                 <input type="number" id="dias-min" class="form-input-small" value="5" min="1" max="365"
                     placeholder="Min">
-                <span>até</span>
+                <span>ate</span>
                 <input type="number" id="dias-max" class="form-input-small" value="180" min="1" max="365"
                     placeholder="Max">
             </div>
@@ -44,34 +40,34 @@
 
     <div class="controls-actions">
         <button id="btn-analisar" class="btn btn-primary" onclick="analisar()">
-            🔍 Analisar
+            Analisar
         </button>
         <span id="status-msg" class="status-text"></span>
     </div>
 
-    <!-- Loading -->
     <div id="loading-area" class="sugestoes-loading" style="display:none;">
         <div class="spinner"></div>
-        <p>Analisando opções...</p>
+        <p>Buscando indicadores do Yahoo Finance e opcoes do OpLab...</p>
     </div>
 
-    <!-- Resultados -->
     <div id="resultado-area" style="display:none;">
-        <!-- Análise de Tendência -->
+        <div class="card indicadores-card">
+            <div class="card-title">Indicadores Tecnicos (Yahoo Finance)</div>
+            <div id="indicadores-content"></div>
+        </div>
+
         <div class="card tendencia-card">
-            <div class="card-title">📊 Análise de Tendência</div>
+            <div class="card-title">Analise de Tendencia</div>
             <div id="tendencia-content"></div>
         </div>
 
-        <!-- Status da Estratégia -->
         <div id="status-card" class="card">
-            <div class="card-title">✅ Status da Estratégia</div>
+            <div class="card-title">Status da Estrategia</div>
             <div id="status-content"></div>
         </div>
 
-        <!-- Sugestões -->
         <div id="sugestoes-card" class="card" style="display:none;">
-            <div class="card-title">💡 Sugestões</div>
+            <div class="card-title">Sugestoes</div>
             <div id="sugestoes-content"></div>
         </div>
     </div>
@@ -101,20 +97,9 @@
     }
 
     .ticker-input {
-        width: 100px;
+        width: 120px;
         text-transform: uppercase;
         font-weight: 600;
-        padding: 0.5rem;
-        border-radius: 6px;
-        background: var(--bg3);
-        border: 1px solid var(--border);
-        color: var(--text);
-        font-family: var(--font-mono);
-        font-size: 0.875rem;
-    }
-
-    .form-input {
-        width: 120px;
         padding: 0.5rem;
         border-radius: 6px;
         background: var(--bg3);
@@ -158,7 +143,31 @@
         font-weight: 500;
     }
 
-    .tendencia-card .tendencia-grid {
+    .indicadores-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+        gap: 0.75rem;
+    }
+
+    .indicador-item {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+
+    .indicador-label {
+        font-size: 0.7rem;
+        color: var(--text3);
+        text-transform: uppercase;
+    }
+
+    .indicador-value {
+        font-family: var(--font-mono);
+        font-weight: 600;
+        font-size: 0.9rem;
+    }
+
+    .tendencia-grid {
         display: grid;
         grid-template-columns: repeat(3, 1fr);
         gap: 1rem;
@@ -190,17 +199,17 @@
         font-weight: 600;
     }
 
-    .badge-alta {
+    .badge-UP {
         background: rgba(74, 222, 128, 0.15);
         color: var(--pnl-positive);
     }
 
-    .badge-baixa {
+    .badge-DOWN {
         background: rgba(248, 113, 113, 0.15);
         color: var(--pnl-negative);
     }
 
-    .badge-lateral {
+    .badge-SIDEWAYS {
         background: rgba(251, 191, 36, 0.15);
         color: var(--amber);
     }
@@ -222,6 +231,8 @@
         justify-content: space-between;
         align-items: center;
         margin-bottom: 0.75rem;
+        flex-wrap: wrap;
+        gap: 0.5rem;
     }
 
     .sugestao-tipo {
@@ -319,18 +330,6 @@
         color: var(--pnl-negative);
     }
 
-    .status-sucesso {
-        color: var(--pnl-positive);
-    }
-
-    .status-erro {
-        color: var(--pnl-negative);
-    }
-
-    .status-info {
-        color: var(--accent);
-    }
-
     .observacoes-box {
         background: var(--bg4);
         border-left: 3px solid var(--accent);
@@ -374,6 +373,10 @@
         .sugestao-metricas {
             grid-template-columns: 1fr 1fr;
         }
+
+        .indicadores-grid {
+            grid-template-columns: 1fr 1fr;
+        }
     }
 </style>
 
@@ -381,7 +384,6 @@
     async function analisar() {
         const ticker = document.getElementById('ticker-input').value.trim().toUpperCase();
         const estrategia = document.getElementById('estrategia-select').value;
-        const precoAtual = document.getElementById('preco-input').value;
         const diasMin = parseInt(document.getElementById('dias-min').value) || 5;
         const diasMax = parseInt(document.getElementById('dias-max').value) || 180;
         const btn = document.getElementById('btn-analisar');
@@ -390,22 +392,19 @@
         const resultadoArea = document.getElementById('resultado-area');
 
         if (!ticker) {
-            status.textContent = '⚠️ Informe o ticker do ativo.';
+            status.textContent = 'Informe o ticker do ativo.';
             status.className = 'status-text status-erro';
             return;
         }
 
         btn.disabled = true;
-        btn.textContent = '⏳ Analisando...';
+        btn.textContent = 'Analisando...';
         status.textContent = '';
         loadingArea.style.display = 'block';
         resultadoArea.style.display = 'none';
 
         try {
-            const body = { ticker, estrategia, dias_min: diasMin, dias_max: diasMax };
-            if (precoAtual) {
-                body.preco_atual = parseFloat(precoAtual);
-            }
+            const body = { ticker: ticker, estrategia: estrategia, dias_min: diasMin, dias_max: diasMax };
 
             const resp = await fetch('/api/sugestoes', {
                 method: 'POST',
@@ -422,12 +421,12 @@
             renderizarResultado(data);
 
         } catch (err) {
-            status.textContent = '❌ ' + err.message;
+            status.textContent = err.message;
             status.className = 'status-text status-erro';
             loadingArea.style.display = 'none';
         } finally {
             btn.disabled = false;
-            btn.textContent = '🔍 Analisar';
+            btn.textContent = 'Analisar';
         }
     }
 
@@ -437,46 +436,75 @@
         loadingArea.style.display = 'none';
         resultadoArea.style.display = 'block';
 
-        // Tendência
-        const tendencia = data.analise_tendencia || {};
-        const tendenciaHtml = `
-            <div class="tendencia-grid">
-                <div class="tendencia-item">
-                    <span class="tendencia-label">Tendência</span>
-                    <span class="tendencia-badge badge-${tendencia.tendencia || 'lateral'}">
-                        ${tendencia.tendencia === 'altas' ? '📈' : tendencia.tendencia === 'baixa' ? '📉' : '➡️'}
-                        ${tendencia.tendencia ? tendencia.tendencia.charAt(0).toUpperCase() + tendencia.tendencia.slice(1) : '—'}
-                    </span>
-                </div>
-                <div class="tendencia-item">
-                    <span class="tendencia-label">IV Média</span>
-                    <span class="tendencia-value">${tendencia.iv_media || '—'}%</span>
-                </div>
-                <div class="tendencia-item">
-                    <span class="tendencia-label">Put/Call Ratio</span>
-                    <span class="tendencia-value">${tendencia.put_call_ratio || '—'}</span>
-                </div>
-            </div>
-        `;
+        // Indicadores tecnicos
+        const tecnica = data.analise_tecnica || {};
+        const ind = tecnica.indicadores || {};
+        if (ind.price) {
+            const indHtml = '<div class="indicadores-grid">' +
+                '<div class="indicador-item"><span class="indicador-label">Preco</span><span class="indicador-value">R$ ' + ind.price + '</span></div>' +
+                '<div class="indicador-item"><span class="indicador-label">EMA 9</span><span class="indicador-value">' + (ind.ema9 || '-') + '</span></div>' +
+                '<div class="indicador-item"><span class="indicador-label">EMA 21</span><span class="indicador-value">' + (ind.ema21 || '-') + '</span></div>' +
+                '<div class="indicador-item"><span class="indicador-label">EMA 200</span><span class="indicador-value">' + (ind.ema200 || '-') + '</span></div>' +
+                '<div class="indicador-item"><span class="indicador-label">RSI</span><span class="indicador-value">' + (ind.rsi || '-') + '</span></div>' +
+                '<div class="indicador-item"><span class="indicador-label">ADX</span><span class="indicador-value">' + (ind.adx || '-') + '</span></div>' +
+                '<div class="indicador-item"><span class="indicador-label">MACD</span><span class="indicador-value">' + (ind.macd || '-') + '</span></div>' +
+                '<div class="indicador-item"><span class="indicador-label">MACD Signal</span><span class="indicador-value">' + (ind.macd_signal || '-') + '</span></div>' +
+                '<div class="indicador-item"><span class="indicador-label">BB Upper</span><span class="indicador-value">' + (ind.bb_upper || '-') + '</span></div>' +
+                '<div class="indicador-item"><span class="indicador-label">BB Lower</span><span class="indicador-value">' + (ind.bb_lower || '-') + '</span></div>' +
+                '<div class="indicador-item"><span class="indicador-label">BB Width</span><span class="indicador-value">' + (ind.bb_width || '-') + '</span></div>' +
+                '</div>';
+            document.getElementById('indicadores-content').innerHTML = indHtml;
+        }
+
+        // Analise de tendencia (valores ja traduzidos pelo backend)
+        const tendenciaDir = tecnica.tendencia || 'N/A';
+        const badgeMap = { 'Alta': 'badge-UP', 'Baixa': 'badge-DOWN', 'Lateral': 'badge-SIDEWAYS' };
+        const badgeClass = badgeMap[tendenciaDir] || '';
+        const tendenciaHtml = '<div class="tendencia-grid">' +
+            '<div class="tendencia-item">' +
+            '<span class="tendencia-label">Tendencia</span>' +
+            '<span class="tendencia-badge ' + badgeClass + '">' + tendenciaDir + '</span>' +
+            '</div>' +
+            '<div class="tendencia-item">' +
+            '<span class="tendencia-label">Forca</span>' +
+            '<span class="tendencia-value">' + (tecnica.tendencia_forca || 'N/A') + '</span>' +
+            '</div>' +
+            '<div class="tendencia-item">' +
+            '<span class="tendencia-label">Volatilidade</span>' +
+            '<span class="tendencia-value">' + (tecnica.volatilidade || 'N/A') + '</span>' +
+            '</div>' +
+            '<div class="tendencia-item">' +
+            '<span class="tendencia-label">Momento</span>' +
+            '<span class="tendencia-value">' + (tecnica.momentum || 'N/A') + '</span>' +
+            '</div>' +
+            '<div class="tendencia-item">' +
+            '<span class="tendencia-label">Sobrecomprado</span>' +
+            '<span class="tendencia-value">' + (tecnica.sobrecomprado ? 'Sim' : 'Nao') + '</span>' +
+            '</div>' +
+            '<div class="tendencia-item">' +
+            '<span class="tendencia-label">Sobrevendido</span>' +
+            '<span class="tendencia-value">' + (tecnica.sobrevendido ? 'Sim' : 'Nao') + '</span>' +
+            '</div>' +
+            '</div>';
         document.getElementById('tendencia-content').innerHTML = tendenciaHtml;
 
         // Status
-        const apdo = data.apto_para_estrategia;
+        const apdo = data.estrategia_sugerida !== 'Nao Operar';
         let statusHtml = '';
         if (apdo) {
-            statusHtml = `<div class="observacoes-box status-sucesso">
-                ✅ ${data.observacoes || 'Estratégia recomendada.'}
-            </div>`;
+            statusHtml = '<div class="observacoes-box status-sucesso">' +
+                'Estrategia sugerida: <b>' + data.estrategia_sugerida + '</b><br>' +
+                (data.observacoes || 'Estrategia recomendada.') +
+                '</div>';
         } else {
-            statusHtml = `<div class="nao-apto-box status-info">
-                ⚠️ <strong>Não recomendado no momento:</strong><br>
-                ${data.motivo || 'Critérios não atendidos.'}
-                ${data.observacoes ? '<br><br><em>' + data.observacoes + '</em>' : ''}
-            </div>`;
+            statusHtml = '<div class="nao-apto-box status-info">' +
+                '<strong>Nao recomendado operar no momento.</strong><br>' +
+                (data.observacoes || 'Aguardar melhor oportunidade.') +
+                '</div>';
         }
         document.getElementById('status-content').innerHTML = statusHtml;
 
-        // Sugestões
+        // Sugestoes
         const sugestoes = data.sugestoes || [];
         const sugestoesCard = document.getElementById('sugestoes-card');
 
@@ -487,149 +515,114 @@
             let sugestoesHtml = '';
 
             for (const sug of sugestoes) {
-                const scoreClass = sug.score >= 60 ? 'score-high' : sug.score >= 30 ? 'score-medium' : 'score-low';
+                const score = sug.score || 0;
+                const scoreClass = score >= 60 ? 'score-high' : score >= 30 ? 'score-medium' : 'score-low';
 
-                sugestoesHtml += `
-                    <div class="sugestao-card">
-                        <div class="sugestao-header">
-                            <span class="sugestao-tipo">${sug.tipo || 'Estratégia'}</span>
-                            <span class="sugestao-score ${scoreClass}">⭐ Score: ${sug.score || 0}</span>
-                        </div>
-                `;
+                sugestoesHtml += '<div class="sugestao-card">' +
+                    '<div class="sugestao-header">' +
+                    '<span class="sugestao-tipo">' + (sug.tipo || 'Estrategia') + '</span>' +
+                    '<span class="sugestao-score ' + scoreClass + '">Score: ' + score + '</span>' +
+                    '</div>';
 
                 // Pernas (para spreads)
                 if (sug.perna_compra || sug.perna_venda) {
-                    sugestoesHtml += `<div class="sugestao-pernas">`;
+                    sugestoesHtml += '<div class="sugestao-pernas">';
 
                     if (sug.perna_compra) {
-                        sugestoesHtml += `
-                            <div class="perna-box">
-                                <div class="perna-label">🟢 Compra</div>
-                                <div class="perna-simbolo">${sug.perna_compra.simbolo || '—'}</div>
-                                <div class="perna-detalhes">
-                                    Strike: <b>${sug.perna_compra.strike?.toFixed(2)}</b> |
-                                    Prêmio: R$ ${sug.perna_compra.premio?.toFixed(2)} |
-                                    Delta: ${sug.perna_compra.delta?.toFixed(3)}
-                                </div>
-                                <div class="perna-detalhes">
-                                    VI: ${sug.perna_compra.vi?.toFixed(1)}% |
-                                    Moneyness: ${sug.perna_compra.moneyness || '—'}
-                                </div>
-                            </div>
-                        `;
+                        sugestoesHtml += '<div class="perna-box">' +
+                            '<div class="perna-label">Compra</div>' +
+                            '<div class="perna-simbolo">' + (sug.perna_compra.simbolo || 'N/A') + '</div>' +
+                            '<div class="perna-detalhes">' +
+                            'Strike: <b>' + (sug.perna_compra.strike || 0).toFixed(2) + '</b> | ' +
+                            'Premio: R$ ' + (sug.perna_compra.premio || 0).toFixed(2) +
+                            '</div>' +
+                            '<div class="perna-detalhes">' +
+                            'VI: ' + (sug.perna_compra.vi || 0).toFixed(1) + '% | ' +
+                            'Moneyness: ' + (sug.perna_compra.moneyness || 'N/A') +
+                            '</div>' +
+                            '</div>';
                     }
 
                     if (sug.perna_venda) {
-                        sugestoesHtml += `
-                            <div class="perna-box">
-                                <div class="perna-label">🔴 Venda</div>
-                                <div class="perna-simbolo">${sug.perna_venda.simbolo || '—'}</div>
-                                <div class="perna-detalhes">
-                                    Strike: <b>${sug.perna_venda.strike?.toFixed(2)}</b> |
-                                    Prêmio: R$ ${sug.perna_venda.premio?.toFixed(2)} |
-                                    Delta: ${sug.perna_venda.delta?.toFixed(3)}
-                                </div>
-                                <div class="perna-detalhes">
-                                    VI: ${sug.perna_venda.vi?.toFixed(1)}% |
-                                    Moneyness: ${sug.perna_venda.moneyness || '—'}
-                                </div>
-                            </div>
-                        `;
+                        sugestoesHtml += '<div class="perna-box">' +
+                            '<div class="perna-label">Venda</div>' +
+                            '<div class="perna-simbolo">' + (sug.perna_venda.simbolo || 'N/A') + '</div>' +
+                            '<div class="perna-detalhes">' +
+                            'Strike: <b>' + (sug.perna_venda.strike || 0).toFixed(2) + '</b> | ' +
+                            'Premio: R$ ' + (sug.perna_venda.premio || 0).toFixed(2) +
+                            '</div>' +
+                            '<div class="perna-detalhes">' +
+                            'VI: ' + (sug.perna_venda.vi || 0).toFixed(1) + '% | ' +
+                            'Moneyness: ' + (sug.perna_venda.moneyness || 'N/A') +
+                            '</div>' +
+                            '</div>';
                     }
 
-                    sugestoesHtml += `</div>`;
+                    sugestoesHtml += '</div>';
                 } else if (sug.simbolo) {
-                    // Opção simples
-                    sugestoesHtml += `
-                        <div style="background: var(--bg4); padding: 0.5rem; border-radius: 4px; margin-bottom: 0.75rem;">
-                            <div class="perna-simbolo">${sug.simbolo}</div>
-                            <div class="perna-detalhes">
-                                Strike: <b>${sug.strike?.toFixed(2)}</b> | 
-                                Prêmio: R$ ${sug.premio?.toFixed(2)} | 
-                                Delta: ${sug.delta?.toFixed(3)} |
-                                VI: ${sug.vi?.toFixed(1)}%
-                            </div>
-                        </div>
-                    `;
+                    sugestoesHtml += '<div style="background: var(--bg4); padding: 0.5rem; border-radius: 4px; margin-bottom: 0.75rem;">' +
+                        '<div class="perna-simbolo">' + sug.simbolo + '</div>' +
+                        '<div class="perna-detalhes">' +
+                        'Strike: <b>' + (sug.strike || 0).toFixed(2) + '</b> | ' +
+                        'Premio: R$ ' + (sug.premio || 0).toFixed(2) + ' | ' +
+                        'VI: ' + (sug.vi || 0).toFixed(1) + '%' +
+                        '</div>' +
+                        '</div>';
                 }
 
-                // Métricas
-                sugestoesHtml += `<div class="sugestao-metricas">`;
+                // Metricas
+                sugestoesHtml += '<div class="sugestao-metricas">';
 
                 if (sug.debito !== undefined) {
-                    sugestoesHtml += `
-                        <div class="metrica-item">
-                            <span class="metrica-label">Débito</span>
-                            <span class="metrica-valor negativo">R$ ${sug.debito.toFixed(2)}</span>
-                        </div>
-                    `;
+                    sugestoesHtml += '<div class="metrica-item">' +
+                        '<span class="metrica-label">Debito</span>' +
+                        '<span class="metrica-valor negativo">R$ ' + sug.debito.toFixed(2) + '</span>' +
+                        '</div>';
                 }
                 if (sug.credito !== undefined) {
-                    sugestoesHtml += `
-                        <div class="metrica-item">
-                            <span class="metrica-label">Crédito</span>
-                            <span class="metrica-valor positivo">R$ ${sug.credito.toFixed(2)}</span>
-                        </div>
-                    `;
+                    sugestoesHtml += '<div class="metrica-item">' +
+                        '<span class="metrica-label">Credito</span>' +
+                        '<span class="metrica-valor positivo">R$ ' + sug.credito.toFixed(2) + '</span>' +
+                        '</div>';
                 }
                 if (sug.lucro_max !== undefined) {
-                    sugestoesHtml += `
-                        <div class="metrica-item">
-                            <span class="metrica-label">Lucro Máx.</span>
-                            <span class="metrica-valor positivo">R$ ${sug.lucro_max.toFixed(2)}</span>
-                        </div>
-                    `;
+                    sugestoesHtml += '<div class="metrica-item">' +
+                        '<span class="metrica-label">Lucro Max.</span>' +
+                        '<span class="metrica-valor positivo">R$ ' + sug.lucro_max.toFixed(2) + '</span>' +
+                        '</div>';
                 }
                 if (sug.perda_max !== undefined) {
-                    sugestoesHtml += `
-                        <div class="metrica-item">
-                            <span class="metrica-label">Perda Máx.</span>
-                            <span class="metrica-valor negativo">R$ ${sug.perda_max.toFixed(2)}</span>
-                        </div>
-                    `;
+                    sugestoesHtml += '<div class="metrica-item">' +
+                        '<span class="metrica-label">Perda Max.</span>' +
+                        '<span class="metrica-valor negativo">R$ ' + sug.perda_max.toFixed(2) + '</span>' +
+                        '</div>';
                 }
                 if (sug.break_even !== undefined) {
-                    sugestoesHtml += `
-                        <div class="metrica-item">
-                            <span class="metrica-label">Break-Even</span>
-                            <span class="metrica-valor">R$ ${sug.break_even.toFixed(2)}</span>
-                        </div>
-                    `;
+                    sugestoesHtml += '<div class="metrica-item">' +
+                        '<span class="metrica-label">Break-Even</span>' +
+                        '<span class="metrica-valor">R$ ' + sug.break_even.toFixed(2) + '</span>' +
+                        '</div>';
                 }
                 if (sug.retorno_pct !== undefined) {
-                    sugestoesHtml += `
-                        <div class="metrica-item">
-                            <span class="metrica-label">Retorno/Risco</span>
-                            <span class="metrica-valor ${sug.retorno_pct > 100 ? 'positivo' : ''}">${sug.retorno_pct.toFixed(0)}%</span>
-                        </div>
-                    `;
-                }
-                if (sug.alavancagem !== undefined) {
-                    sugestoesHtml += `
-                        <div class="metrica-item">
-                            <span class="metrica-label">Alavancagem</span>
-                            <span class="metrica-valor">${sug.alavancagem.toFixed(1)}x</span>
-                        </div>
-                    `;
+                    sugestoesHtml += '<div class="metrica-item">' +
+                        '<span class="metrica-label">Retorno/Risco</span>' +
+                        '<span class="metrica-valor ' + (sug.retorno_pct > 100 ? 'positivo' : '') + '">' + sug.retorno_pct.toFixed(0) + '%</span>' +
+                        '</div>';
                 }
                 if (sug.dias_vencimento !== undefined) {
-                    sugestoesHtml += `
-                        <div class="metrica-item">
-                            <span class="metrica-label">Dias até Venc.</span>
-                            <span class="metrica-valor">${sug.dias_vencimento}</span>
-                        </div>
-                    `;
+                    sugestoesHtml += '<div class="metrica-item">' +
+                        '<span class="metrica-label">Dias ate Venc.</span>' +
+                        '<span class="metrica-valor">' + sug.dias_vencimento + '</span>' +
+                        '</div>';
                 }
                 if (sug.poe !== undefined) {
-                    sugestoesHtml += `
-                        <div class="metrica-item">
-                            <span class="metrica-label">Prob. ITM</span>
-                            <span class="metrica-valor">${sug.poe.toFixed(1)}%</span>
-                        </div>
-                    `;
+                    sugestoesHtml += '<div class="metrica-item">' +
+                        '<span class="metrica-label">Prob. ITM</span>' +
+                        '<span class="metrica-valor">' + sug.poe.toFixed(1) + '%</span>' +
+                        '</div>';
                 }
 
-                sugestoesHtml += `</div></div>`;
+                sugestoesHtml += '</div></div>';
             }
 
             document.getElementById('sugestoes-content').innerHTML = sugestoesHtml;

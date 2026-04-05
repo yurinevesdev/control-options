@@ -696,17 +696,10 @@ def create_app() -> Flask:
     @app.route("/sugestoes")
     def sugestoes_page():
         """Página de sugestão de estruturas de opções."""
-        estrategias = [
-            ("auto", "Análise Automática"),
-            ("trava_baixa_put", "Trava de Baixa com PUT (Bear Put Spread)"),
-            ("trava_alta_put", "Trava de Alta com PUT (Bull Put Spread)"),
-            ("trava_alta_call", "Trava de Baixa com CALL (Bear Call Spread)"),
-            ("compra_call", "Compra de CALL"),
-            ("compra_put", "Compra de PUT"),
-        ]
+        from eagle.sugestoes import ESTRATEGIAS_DISPONIVEIS
         return render_template(
             "sugestoes.html",
-            estrategias=estrategias,
+            estrategias=ESTRATEGIAS_DISPONIVEIS,
             brl=brl,
             fmt_date=fmt_date,
         )
@@ -715,6 +708,9 @@ def create_app() -> Flask:
     @rate_limit(max_calls=10, window=60)
     def api_sugestoes():
         """API para análise e sugestão de estruturas."""
+        from eagle.sugestoes import ESTRATEGIAS_DISPONIVEIS
+        from eagle.indicadores import buscar_indicadores
+        
         data = request.get_json(force=True, silent=True) or {}
         
         ticker = (data.get("ticker") or "").strip().upper()
@@ -726,6 +722,11 @@ def create_app() -> Flask:
         dias_max = data.get("dias_max", 180)
         
         try:
+            # Buscar indicadores técnicos do Yahoo Finance automaticamente
+            indicadores = buscar_indicadores(ticker)
+            if not indicadores:
+                log.warning("Não foi possível obter indicadores técnicos para %s", ticker)
+            
             # Buscar opções detalhadas do DB
             opcoes_db = buscar_opcoes_serie(db, ticker)
             
@@ -739,24 +740,17 @@ def create_app() -> Flask:
                     }), 404
                 opcoes_db = opcoes_api
             
-            # Obter preço atual
-            preco_atual = data.get("preco_atual")
-            if not preco_atual:
-                # Tentar obter do cache de opções
-                cache = carregar_cache_opcoes()
-                for item in cache:
-                    if item.get("ticker", "").upper() == ticker:
-                        preco_atual = item.get("preco")
-                        break
-                
-                if not preco_atual:
-                    # Usar o último preço das opções
-                    for opt in opcoes_db:
-                        if opt.get("ultimo_preco", 0) > 0:
-                            strike = opt.get("strike", 0)
-                            if strike > 0:
-                                preco_atual = strike  # Aproximação
-                                break
+            # Usar preço dos indicadores (Yahoo Finance) ou fallback
+            preco_atual = indicadores.get("price") if indicadores else None
+            
+            if not preco_atual or preco_atual <= 0:
+                # Fallback: usar preço das opções
+                for opt in opcoes_db:
+                    if opt.get("ultimo_preco", 0) > 0:
+                        strike = opt.get("strike", 0)
+                        if strike > 0:
+                            preco_atual = strike
+                            break
             
             if not preco_atual or preco_atual <= 0:
                 return jsonify({"error": "Não foi possível obter o preço atual do ativo."}), 400
@@ -769,6 +763,7 @@ def create_app() -> Flask:
                 estrategia=estrategia,
                 vencimento_dias_min=int(dias_min),
                 vencimento_dias_max=int(dias_max),
+                indicadores=indicadores,
             )
             
             return jsonify(resultado)
