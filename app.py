@@ -33,12 +33,17 @@ from flask import (
 )
 
 from eagle import blackscholes as BS
-from eagle.charts import dashboard_bar, dashboard_doughnut, payoff_figure
+from eagle.charts import dashboard_doughnut, dashboard_bar, payoff_figure
 from eagle.config import DEBUG, HOST, PORT, SECRET_KEY, ESTRATEGIAS_LIST, DB_PATH
 from eagle.csv_io import export_zip_bytes, import_merge_zip, zip_from_csv_parts
 from eagle.db import Database
 from eagle.logger import setup_logging, get_logger
 from eagle.ui_format import brl, color_pnl, dias_ate_venc, fmt_date
+from eagle.opcoes_scraper import (
+    atualizar_dados_opcoes,
+    buscar_opcoes_dados,
+    carregar_cache as carregar_cache_opcoes,
+)
 
 # -------------------------------------------------------------------------
 # Setup
@@ -152,6 +157,12 @@ def create_app() -> Flask:
         template_folder="templates",
     )
     app.secret_key = SECRET_KEY
+
+    # Registrar filtros Jinja2
+    app.jinja_env.filters['brl'] = brl
+    app.jinja_env.filters['fmt_date'] = fmt_date
+    app.jinja_env.filters['color_pnl'] = color_pnl
+    app.jinja_env.filters['dias_ute_venc'] = dias_ate_venc
 
     # ---- DB lifecycle ----
     @app.before_request
@@ -534,6 +545,71 @@ def create_app() -> Flask:
             headers={
                 "Content-Disposition": f'attachment; filename="{name}"',
             },
+        )
+
+    # ---- Rotas de dados de opções (OpLab) ----
+
+    @app.route("/api/opcoes/atualizar", methods=["POST"])
+    @rate_limit(max_calls=5, window=300)
+    def atualizar_opcoes():
+        """Atualiza dados de IV/IV Rank do OpLab e salva no DB."""
+        try:
+            dados = atualizar_dados_opcoes(db, usar_cache=True)
+            if not dados:
+                return jsonify({"error": "Nenhum dado extraído. Verifique o acesso ao OpLab."}), 502
+            return jsonify({
+                "success": True,
+                "total": len(dados),
+                "message": f"{len(dados)} ativos atualizados com sucesso.",
+            })
+        except Exception as e:
+            log.error("Erro ao atualizar opções: %s", e)
+            return jsonify({"error": str(e)}), 500
+
+    @app.route("/api/opcoes/dados", methods=["GET"])
+    def opcoes_dados():
+        """Retorna dados de IV/IV Rank para os tickers informados."""
+        tickers = request.args.get("tickers", "").split(",")
+        tickers = [t.strip().upper() for t in tickers if t.strip()]
+        if not tickers:
+            # Retorna cache se não especificou tickers
+            cache = carregar_cache_opcoes()
+            return jsonify({"ativos": cache})
+        dados = buscar_opcoes_dados(db, tickers)
+        return jsonify({"ativos": dados})
+
+    @app.route("/opcoes")
+    def opcoes_page():
+        """Página de visualização de dados de opções (IV, IV Rank, etc.)."""
+        # Usar dados do cache primeiro, se vazio tentar do banco
+        cache = carregar_cache_opcoes()
+        
+        # Se cache vazio, busca do banco
+        if not cache:
+            try:
+                from eagle.opcoes_scraper import buscar_opcoes_dados
+                dados_db = buscar_opcoes_dados(db)
+                # Converter formato do banco para formato do cache
+                cache = [
+                    {
+                        "ticker": v.get("ticker", ""),
+                        "preco": v.get("preco"),
+                        "variacao_pct": v.get("variacao_pct"),
+                        "vi": v.get("volatilidade_implicita"),
+                        "iv_rank": v.get("iv_rank"),
+                        "iv_percentil": v.get("iv_percentil"),
+                        "atualizado_em": v.get("atualizado_em", ""),
+                    }
+                    for v in dados_db.values()
+                ]
+            except Exception as e:
+                log.warning("Erro ao buscar dados do banco: %s", e)
+        
+        return render_template(
+            "opcoes.html",
+            ativos=cache,
+            brl=brl,
+            fmt_date=fmt_date,
         )
 
     return app

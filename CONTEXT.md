@@ -24,10 +24,11 @@
 | Estilo | CSS3 | `static/css/style.css` |
 | Gráficos | Plotly (Python → HTML) | Payoff + dashboard (CDN Plotly.js no HTML gerado) |
 | Fontes | Google Fonts | Syne + JetBrains Mono |
+| Scraping | requests + BeautifulSoup | Extração de IV/IV Rank do OpLab |
 
-**Cliente:** navegador. **JS mínimo:** modais/toasts (fechar overlay e ESC), `fetch` JSON em `/api/preview-greeks` ao alterar IV na perna.
+**Cliente:** navegador. **JS mínimo:** modais/toasts (fechar overlay e ESC), `fetch` JSON em `/api/preview-greeks` ao alterar IV na perna, `fetch` em `/api/opcoes/atualizar` para atualizar dados de opções.
 
-**Dependências:** ver `requirements.txt` (`flask`, `plotly`).
+**Dependências:** ver `requirements.txt` (`flask`, `plotly`, `requests`, `beautifulsoup4`).
 
 ---
 
@@ -47,12 +48,14 @@ control-options/
 │   ├── db.py              # SQLite (com WAL, índices, backup)
 │   ├── csv_io.py          # Export/import ZIP com estruturas.csv + legs.csv
 │   ├── ui_format.py       # brl, datas, color_pnl
-│   └── charts.py          # Plotly payoff + dashboard
+│   ├── charts.py          # Plotly payoff + dashboard
+│   └── opcoes_scraper.py  # ★ NOVO: Scraping IV/IV Rank do OpLab
 ├── templates/
-│   ├── base.html          # Layout base + toasts auto-dismiss + Ctrl+S
+│   ├── base.html          # Layout base + toasts auto-dismiss + Ctrl+S + nav Opções
 │   ├── simulador.html     # Página principal (validações HTML5, estratégias)
 │   ├── historico.html
-│   └── dashboard.html
+│   ├── dashboard.html
+│   └── opcoes.html        # ★ NOVO: Página de dados de opções (IV, IV Rank)
 └── static/css/style.css   # Design system
 ```
 
@@ -86,7 +89,24 @@ O sistema inclui templates de estratégias (`ESTRATEGIAS_LIST`):
 - Strangle
 - Calendária Call
 
-### 3.3 CSV — exportação e importação
+### 3.3 Scraping de Opções (eagle/opcoes_scraper.py)
+
+Módulo para extrair dados de volatilidade implícita do **OpLab** (opcoes.oplab.com.br):
+
+| Função | Descrição |
+|--------|-----------|
+| `baixar_lista_ativos()` | Scraping da página principal do OpLab |
+| `salvar_cache(dados)` | Salva dados em `cache/oplab_opcoes.json` |
+| `carregar_cache()` | Carrega dados do cache (válido por 24h) |
+| `salvar_no_db(dados, db)` | Upsert na tabela `opcoes_dados` |
+| `buscar_opcoes_dados(db, tickers)` | Busca dados do DB por tickers |
+| `atualizar_dados_opcoes(db)` | Pipeline completo: scrape → cache → DB |
+
+**Tabela `opcoes_dados`:** `ticker` (PK), `preco`, `variacao_pct`, `volatilidade_implicita`, `iv_rank`, `iv_percentil`, `atualizado_em`.
+
+**Cache:** ficheiro JSON em `cache/oplab_opcoes.json`, válido por 24 horas.
+
+### 3.4 CSV — exportação e importação
 
 | Rota | Descrição |
 |------|-----------|
@@ -152,6 +172,7 @@ Configuração centralizada com variáveis de ambiente e lista de estratégias p
 | **Error handlers** | 404 e 500 com flash messages |
 | **Backup DB** | `GET /admin/backup` gera dump SQLite |
 | **WAL mode** | Melhor performance de escrita no SQLite |
+| **Scraping OpLab** | IV/IV Rank automáticos com cache de 24h |
 
 ### 8.2 Rotas
 
@@ -169,6 +190,9 @@ Configuração centralizada com variáveis de ambiente e lista de estratégias p
 | `GET /dashboard` | Dashboard com métricas agregadas |
 | `POST /api/preview-greeks` | JSON: gregas + preço sugerido |
 | `GET /admin/backup` | Download backup SQLite |
+| `POST /api/opcoes/atualizar` | Atualiza dados IV/IV Rank do OpLab (rate: 5 req/5min) |
+| `GET /api/opcoes/dados` | Retorna dados de opções (cache ou DB por tickers) |
+| `GET /opcoes` | Página de visualização de dados de opções |
 
 ---
 
@@ -204,6 +228,8 @@ Configuração centralizada com variáveis de ambiente e lista de estratégias p
 - Dados no ficheiro SQLite da máquina que corre o servidor.
 - Import CSV é **adição** de registos, não substituição total automática.
 - Curva "atual" BS depende de IV nas pernas.
+- Scraping do OpLab depende da estrutura HTML do site (pode quebrar com atualizações do site).
+- Cache de 24h pode não refletir dados em tempo real.
 
 ---
 
@@ -212,3 +238,18 @@ Configuração centralizada com variáveis de ambiente e lista de estratégias p
 - Tipagem e nomes em **snake_case** nos módulos `eagle/`.
 - Dicts vindos da BD/templates com chaves **camelCase** para estruturas/pernas.
 - Alterações focadas; alinhar estilo aos ficheiros existentes.
+
+## 13. Como estender (rápido)
+
+| Alteração | Onde |
+|-----------|------|
+| Campo novo na estrutura | Coluna em `db.py` + `save_estrutura`; formulário em `simulador.html`; rota `save_estrutura` |
+| Campo novo na perna | Idem em `legs` + modal perna + `save_leg` |
+| Novo cálculo BS | `eagle/blackscholes.py` |
+| Novo gráfico | `eagle/charts.py` + template da página |
+| Nova página | Nova rota em `app.py` + template + link em `base.html` |
+| Nova fonte de dados | Novo módulo em `eagle/` + rota API + template |
+
+## 14. Migração JS → Python
+
+O cliente deixou de ser uma SPA só estática: **não há** `index.html` nem pasta `js/` no repositório. Dados antigos em **IndexedDB** não migram automaticamente para SQLite; export/import manual se necessário.
