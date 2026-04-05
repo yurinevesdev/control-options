@@ -1,9 +1,9 @@
 {% extends "base.html" %}
+{% set active_page = 'opcoes' %}
 
-{% block title %}Opções - {{ ticker }} - Yuri System{% endblock %}
+{% block title %}Opcoes - {{ ticker }} - Yuri System{% endblock %}
 
-{% block head %}
-{{ super() }}
+{% block body %}
 <style>
     .opcoes-header {
         background: linear-gradient(135deg, #1a365d 0%, #2d3748 100%);
@@ -36,7 +36,6 @@
         border-radius: 0.375rem;
         cursor: pointer;
         font-weight: 600;
-        transition: all 0.2s;
     }
 
     .btn-primary {
@@ -51,10 +50,6 @@
     .btn-secondary {
         background: #718096;
         color: white;
-    }
-
-    .btn-secondary:hover {
-        background: #4a5568;
     }
 
     .btn-success {
@@ -80,9 +75,7 @@
         border: none;
         background: transparent;
         cursor: pointer;
-        font-size: 0.875rem;
         border-radius: 0.25rem;
-        transition: all 0.2s;
     }
 
     .series-tab:hover {
@@ -98,10 +91,6 @@
         width: 100%;
         border-collapse: collapse;
         font-size: 0.875rem;
-        background: white;
-        border-radius: 0.375rem;
-        overflow: hidden;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
     }
 
     .opcoes-table th {
@@ -109,7 +98,6 @@
         padding: 0.75rem;
         text-align: right;
         font-weight: 600;
-        color: #4a5568;
         border-bottom: 2px solid #e2e8f0;
         position: sticky;
         top: 0;
@@ -127,7 +115,6 @@
 
     .opcoes-table td:first-child {
         text-align: left;
-        font-weight: 500;
     }
 
     .opcoes-table tbody tr:hover {
@@ -144,31 +131,28 @@
 
     .moneyness-itm {
         background: #f0fff4;
-        font-weight: 600;
-        padding: 0.125rem 0.375rem;
-        border-radius: 0.25rem;
-        font-size: 0.75rem;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 12px;
     }
 
     .moneyness-atm {
         background: #fefcbf;
-        font-weight: 600;
-        padding: 0.125rem 0.375rem;
-        border-radius: 0.25rem;
-        font-size: 0.75rem;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 12px;
     }
 
     .moneyness-otm {
         background: #fff5f5;
-        font-weight: 600;
-        padding: 0.125rem 0.375rem;
-        border-radius: 0.25rem;
-        font-size: 0.75rem;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 12px;
     }
 
     .loading {
         text-align: center;
-        padding: 3rem;
+        padding: 4rem;
         color: #718096;
     }
 
@@ -176,8 +160,8 @@
         border: 4px solid #f3f3f3;
         border-top: 4px solid #3182ce;
         border-radius: 50%;
-        width: 48px;
-        height: 48px;
+        width: 40px;
+        height: 40px;
         animation: spin 1s linear infinite;
         margin: 0 auto 1rem;
     }
@@ -192,34 +176,18 @@
         }
     }
 
-    .alert {
-        padding: 1rem;
-        border-radius: 0.375rem;
-        margin-bottom: 1rem;
-    }
-
-    .alert-error {
-        background: #fed7d7;
-        color: #742a2a;
-        border: 1px solid #feb2b2;
-    }
-
-    .alert-success {
-        background: #c6f6d5;
-        color: #22543d;
-        border: 1px solid #9ae6b4;
-    }
-
-    .alert-info {
-        background: #bee3f8;
-        color: #2a4365;
-        border: 1px solid #90cdf4;
+    .vi-badge {
+        background: #e9d8fd;
+        color: #44337a;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 12px;
     }
 
     .tipo-badge {
-        padding: 0.25rem 0.5rem;
-        border-radius: 0.25rem;
-        font-size: 0.75rem;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 12px;
         font-weight: 600;
     }
 
@@ -233,86 +201,52 @@
         color: #742a2a;
     }
 
-    .table-container {
-        max-height: 600px;
-        overflow-y: auto;
-    }
-
-    .strike-highlight {
-        font-weight: 700;
-        color: #1a365d;
-    }
-
-    .vi-badge {
-        background: #e9d8fd;
-        color: #44337a;
-        padding: 0.125rem 0.375rem;
-        border-radius: 0.25rem;
-        font-size: 0.75rem;
-    }
-
-    .liquidez-badge {
-        padding: 0.125rem 0.375rem;
-        border-radius: 0.25rem;
-        font-size: 0.65rem;
-    }
-
-    .liquidez-alta {
-        background: #c6f6d5;
-        color: #22543d;
-    }
-
-    .liquidez-media {
-        background: #fefcbf;
-        color: #975a16;
-    }
-
-    .liquidez-baixa {
-        background: #fed7d7;
-        color: #742a2a;
+    .container {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 1rem;
     }
 </style>
-{% endblock %}
 
-{% block content %}
 <div class="container">
     <div class="opcoes-header">
-        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
             <div>
-                <h1>{{ ticker }} - Opções Detalhadas</h1>
-                <p>Dados completos de todas as séries e vencimentos</p>
+                <h1>{{ ticker }} - Opcoes Detalhadas</h1>
+                <p>Dados completos de todas as series e vencimentos</p>
             </div>
-            <div class="btn-group" style="margin: 0;">
-                <a href="{{ url_for('opcoes_page') }}" class="btn btn-secondary">&larr; Voltar</a>
-                <button onclick="carregarOpcoes()" class="btn btn-primary" id="btn-carregar">Carregar do OpLab</button>
-                <button onclick="salvarOpcoes()" class="btn btn-success" id="btn-salvar">Salvar no Banco</button>
+            <div class="btn-group">
+                <a href="{{ url_for('opcoes_page') }}" class="btn btn-secondary">&#8592; Voltar</a>
+                <button class="btn btn-primary" id="btn-carregar" onclick="carregarOpcoes()">&#x1F504; Carregar do
+                    OpLab</button>
+                <button class="btn btn-success" id="btn-salvar" onclick="salvarOpcoes()" style="display:none;">&#x1F4BE;
+                    Salvar no Banco</button>
             </div>
         </div>
     </div>
 
     <div id="alert-container"></div>
 
-    <div id="content-area" style="display: none;">
-        <div class="series-tabs" id="series-tabs">
-            <!-- Tabs geradas dinamicamente -->
-        </div>
+    <div id="loading-area" class="loading">
+        <div class="spinner"></div>
+        <p><strong>Dados nao carregados</strong></p>
+        <p>Clique no botao <strong>"Carregar do OpLab"</strong> acima para buscar as opcoes.</p>
+    </div>
 
-        <div id="serie-info" style="margin-bottom: 1rem;">
-            <!-- Info da série selecionada -->
-        </div>
-
-        <div class="table-container">
+    <div id="content-area" style="display:none;">
+        <div class="series-tabs" id="series-tabs"></div>
+        <div id="serie-info"></div>
+        <div style="overflow-x:auto;">
             <table class="opcoes-table" id="opcoes-table">
                 <thead>
                     <tr>
-                        <th>Símbolo</th>
+                        <th>Simbolo</th>
                         <th>Tipo</th>
                         <th>Strike</th>
-                        <th>Último Preço</th>
+                        <th>Ultimo</th>
                         <th>Bid</th>
                         <th>Ask</th>
                         <th>Volume</th>
-                        <th>Var. %</th>
                         <th>VI</th>
                         <th>Delta</th>
                         <th>Gamma</th>
@@ -320,212 +254,134 @@
                         <th>Vega</th>
                         <th>Moneyness</th>
                         <th>Liquidez</th>
-                        <th>POE</th>
-                        <th>Exercício</th>
+                        <th>POE%</th>
                     </tr>
                 </thead>
-                <tbody id="opcoes-tbody">
-                    <!-- Linhas geradas dinamicamente -->
-                </tbody>
+                <tbody id="opcoes-tbody"></tbody>
             </table>
         </div>
     </div>
 
-    <div id="loading-area" class="loading">
-        <div class="spinner"></div>
-        <p><strong>⚠️ Dados ainda não carregados</strong></p>
-        <p>Clique no botão <strong>"🔄 Carregar do OpLab"</strong> acima para buscar as opções disponíveis.</p>
-        <p style="font-size: 0.8rem; opacity: 0.7; margin-top: 1rem;">
-            Os dados são buscados diretamente do site da Oplab em tempo real.
-        </p>
-    </div>
-
     {% if opcoes_db %}
-    <div style="margin-top: 2rem;">
-        <h2>Dados em Cache (Última Atualização)</h2>
-        <p>Total de {{ opcoes_db|length }} opções encontradas no banco de dados local.</p>
+    <div style="margin-top:2rem; padding:1rem; background:#f7fafc; border-radius:8px;">
+        <h2>Dados em Cache</h2>
+        <p>{{ opcoes_db|length }} opcoes no banco local.</p>
     </div>
     {% endif %}
 </div>
 
 <script>
-    let dadosOpcoes = {};
-    let seriesDisponiveis = [];
-    let serieSelecionada = null;
+    var dadosOpcoes = {};
+    var seriesDisponiveis = [];
 
-    function showAlert(message, type = 'info') {
-        const container = document.getElementById('alert-container');
-        const alertClass = type === 'error' ? 'alert-error' : type === 'success' ? 'alert-success' : 'alert-info';
-        container.innerHTML = `<div class="alert ${alertClass}">${message}</div>`;
-        setTimeout(() => { container.innerHTML = ''; }, 5000);
+    function showAlert(msg, tipo) {
+        tipo = tipo || 'info';
+        var c = document.getElementById('alert-container');
+        var cls = tipo === 'success' ? 'alert-success' : tipo === 'error' ? 'alert-error' : 'alert-info';
+        c.innerHTML = '<div class="alert ' + cls + '" style="padding:1rem;margin-bottom:1rem;border-radius:8px;">' + msg + '</div>';
+        setTimeout(function () { c.innerHTML = ''; }, 5000);
     }
 
     async function carregarOpcoes() {
-        const btn = document.getElementById('btn-carregar');
+        var btn = document.getElementById('btn-carregar');
         btn.disabled = true;
         btn.textContent = 'Carregando...';
-
         document.getElementById('loading-area').style.display = 'block';
         document.getElementById('content-area').style.display = 'none';
-
         try {
-            const response = await fetch(`/api/opcoes/series/{{ ticker }}`);
-
-            if (!response.ok) {
-                const data = await response.json();
-                throw new Error(data.error || 'Erro ao carregar opções');
-            }
-
-            const data = await response.json();
+            var resp = await fetch('/api/opcoes/series/{{ ticker }}');
+            if (!resp.ok) { var d = await resp.json(); throw new Error(d.error); }
+            var data = await resp.json();
             dadosOpcoes = data.series;
             seriesDisponiveis = Object.keys(data.series).sort();
-
             document.getElementById('loading-area').style.display = 'none';
             document.getElementById('content-area').style.display = 'block';
-
-            renderSeriesTabs();
-
-            // Selecionar primeira série com mais opções
+            document.getElementById('btn-salvar').style.display = 'inline-block';
+            renderTabs();
             if (seriesDisponiveis.length > 0) {
-                let maxOpcoes = 0;
-                let seriePrincipal = seriesDisponiveis[0];
-                for (const serie of seriesDisponiveis) {
-                    if (dadosOpcoes[serie].opcoes.length > maxOpcoes) {
-                        maxOpcoes = dadosOpcoes[serie].opcoes.length;
-                        seriePrincipal = serie;
+                var maxOp = 0, sel = seriesDisponiveis[0];
+                for (var i = 0; i < seriesDisponiveis.length; i++) {
+                    if (dadosOpcoes[seriesDisponiveis[i]].opcoes.length > maxOp) {
+                        maxOp = dadosOpcoes[seriesDisponiveis[i]].opcoes.length;
+                        sel = seriesDisponiveis[i];
                     }
                 }
-                selecionarSerie(seriePrincipal);
+                selecionarSerie(sel);
             }
-
-            showAlert(`${data.total_opcoes} opções carregadas em ${data.total_series} séries`, 'success');
-
-        } catch (error) {
+            showAlert(data.total_opcoes + ' opcoes em ' + data.total_series + ' series', 'success');
+        } catch (e) {
             document.getElementById('loading-area').style.display = 'none';
-            showAlert(error.message, 'error');
-            console.error(error);
-        } finally {
-            btn.disabled = false;
-            btn.textContent = 'Carregar do OpLab';
+            showAlert(e.message, 'error');
         }
+        btn.disabled = false;
+        btn.textContent = '\uD83D\uDD04 Carregar do OpLab';
     }
 
     async function salvarOpcoes() {
-        const btn = document.getElementById('btn-salvar');
+        var btn = document.getElementById('btn-salvar');
         btn.disabled = true;
         btn.textContent = 'Salvando...';
-
         try {
-            const response = await fetch(`/api/opcoes/salvar/{{ ticker }}`, { method: 'POST' });
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.error || 'Erro ao salvar');
-            }
-
+            var resp = await fetch('/api/opcoes/salvar/{{ ticker }}', { method: 'POST' });
+            var data = await resp.json();
+            if (!resp.ok) throw new Error(data.error);
             showAlert(data.message, 'success');
-        } catch (error) {
-            showAlert(error.message, 'error');
-        } finally {
-            btn.disabled = false;
-            btn.textContent = 'Salvar no Banco';
-        }
+        } catch (e) { showAlert(e.message, 'error'); }
+        btn.disabled = false;
+        btn.textContent = '\uD83D\uDCBE Salvar no Banco';
     }
 
-    function renderSeriesTabs() {
-        const container = document.getElementById('series-tabs');
-        container.innerHTML = seriesDisponiveis.map(serie => {
-            const data = serie.split('-').reverse().join('/');
-            const count = dadosOpcoes[serie].opcoes.length;
-            const dias = dadosOpcoes[serie].dias_vencimento;
-            return `
-            <button class="series-tab" data-serie="${serie}" onclick="selecionarSerie('${serie}')">
-                ${data} (${dias}d) - ${count} opções
-            </button>
-        `;
-        }).join('');
+    function renderTabs() {
+        var c = document.getElementById('series-tabs');
+        var html = '';
+        for (var i = 0; i < seriesDisponiveis.length; i++) {
+            var s = seriesDisponiveis[i];
+            var d = s.split('-').reverse().join('/');
+            var dias = dadosOpcoes[s].dias_vencimento;
+            var cnt = dadosOpcoes[s].opcoes.length;
+            html += '<button class="series-tab" data-serie="' + s + '" onclick="selecionarSerie(\'' + s + '\')" style="margin:2px;">' + d + ' (' + dias + 'd) ' + cnt + ' opcoes</button>';
+        }
+        c.innerHTML = html;
     }
 
     function selecionarSerie(serie) {
-        serieSelecionada = serie;
+        var tabs = document.querySelectorAll('.series-tab');
+        for (var i = 0; i < tabs.length; i++) {
+            tabs[i].classList.toggle('active', tabs[i].getAttribute('data-serie') === serie);
+        }
+        var info = dadosOpcoes[serie];
+        var d = serie.split('-').reverse().join('/');
+        var calls = info.opcoes.filter(function (o) { return o.tipo === 'CALL'; });
+        var puts = info.opcoes.filter(function (o) { return o.tipo === 'PUT'; });
+        document.getElementById('serie-info').innerHTML = '<strong>Vencimento:</strong> ' + d + ' | <strong>Dias:</strong> ' + info.dias_vencimento + ' | <strong>Calls:</strong> ' + calls.length + ' | <strong>Puts:</strong> ' + puts.length;
 
-        // Atualizar tabs
-        document.querySelectorAll('.series-tab').forEach(tab => {
-            tab.classList.toggle('active', tab.dataset.serie === serie);
-        });
-
-        // Atualizar info
-        const data = serie.split('-').reverse().join('/');
-        const info = dadosOpcoes[serie];
-        const calls = info.opcoes.filter(o => o.tipo === 'CALL');
-        const puts = info.opcoes.filter(o => o.tipo === 'PUT');
-
-        document.getElementById('serie-info').innerHTML = `
-        <strong>Vencimento:</strong> ${data} | 
-        <strong>Dias:</strong> ${info.dias_vencimento} | 
-        <strong>Calls:</strong> ${calls.length} | 
-        <strong>Puts:</strong> ${puts.length}
-        <span style="margin-left: 1rem; opacity: 0.7;">Clique no cabeçalho para ordenar</span>
-    `;
-
-        // Renderizar tabela
-        const tbody = document.getElementById('opcoes-tbody');
-
-        // Ordenar por strike
-        const sorted = [...info.opcoes].sort((a, b) => a.strike - b.strike);
-
-        tbody.innerHTML = sorted.map(opt => {
-            const tipoClass = opt.tipo === 'CALL' ? 'call-row' : 'put-row';
-            const tipoBadge = opt.tipo === 'CALL' ? '<span class="tipo-badge tipo-call">CALL</span>' : '<span class="tipo-badge tipo-put">PUT</span>';
-
-            let moneynessClass = '';
-            let moneynessText = opt.moneyness;
-            if (opt.moneyness === 'ITM') {
-                moneynessClass = 'moneyness-itm';
-            } else if (opt.moneyness === 'ATM') {
-                moneynessClass = 'moneyness-atm';
-            } else {
-                moneynessClass = 'moneyness-otm';
-            }
-
-            let liqClass = 'liquidez-baixa';
-            if (opt.liquidez_level >= 3) {
-                liqClass = 'liquidez-alta';
-            } else if (opt.liquidez_level >= 2) {
-                liqClass = 'liquidez-media';
-            }
-
-            return `
-            <tr class="${tipoClass}">
-                <td>${opt.simbolo}</td>
-                <td>${tipoBadge}</td>
-                <td class="strike-highlight">${opt.strike.toFixed(2)}</td>
-                <td>${opt.ultimo_preco.toFixed(2)}</td>
-                <td>${opt.bid.toFixed(2)}</td>
-                <td>${opt.ask.toFixed(2)}</td>
-                <td>${opt.volume.toLocaleString('pt-BR')}</td>
-                <td>${opt.variacao_pct.toFixed(2)}%</td>
-                <td><span class="vi-badge">${opt.vi.toFixed(2)}%</span></td>
-                <td>${opt.delta.toFixed(4)}</td>
-                <td>${opt.gamma.toFixed(4)}</td>
-                <td>${opt.theta.toFixed(4)}</td>
-                <td>${opt.vega.toFixed(4)}</td>
-                <td><span class="${moneynessClass}">${moneynessText}</span></td>
-                <td><span class="liquidez-badge ${liqClass}">${opt.liquidez_texto}</span></td>
-                <td>${opt.poe.toFixed(1)}%</td>
-                <td>${opt.maturity_type === 'AMERICAN' ? 'Amer.' : 'Eur.'}</td>
-            </tr>
-        `;
-        }).join('');
+        var sorted = info.opcoes.slice().sort(function (a, b) { return a.strike - b.strike; });
+        var html = '';
+        for (var i = 0; i < sorted.length; i++) {
+            var o = sorted[i];
+            var rowCls = o.tipo === 'CALL' ? 'call-row' : 'put-row';
+            var monoCls = o.moneyness === 'ITM' ? 'moneyness-itm' : o.moneyness === 'ATM' ? 'moneyness-atm' : 'moneyness-otm';
+            html += '<tr class="' + rowCls + '">';
+            html += '<td>' + o.simbolo + '</td>';
+            html += '<td><span class="tipo-badge tipo-' + o.tipo.toLowerCase() + '">' + o.tipo + '</span></td>';
+            html += '<td><b>' + o.strike.toFixed(2) + '</b></td>';
+            html += '<td>' + o.ultimo_preco.toFixed(2) + '</td>';
+            html += '<td>' + o.bid.toFixed(2) + '</td>';
+            html += '<td>' + o.ask.toFixed(2) + '</td>';
+            html += '<td>' + o.volume + '</td>';
+            html += '<td><span class="vi-badge">' + o.vi.toFixed(2) + '%</span></td>';
+            html += '<td>' + o.delta.toFixed(4) + '</td>';
+            html += '<td>' + o.gamma.toFixed(4) + '</td>';
+            html += '<td>' + o.theta.toFixed(4) + '</td>';
+            html += '<td>' + o.vega.toFixed(4) + '</td>';
+            html += '<td><span class="' + monoCls + '">' + o.moneyness + '</span></td>';
+            html += '<td>' + o.liquidez_texto + '</td>';
+            html += '<td>' + o.poe.toFixed(1) + '%</td>';
+            html += '</tr>';
+        }
+        document.getElementById('opcoes-tbody').innerHTML = html;
     }
-
-    // Inicializar
-    document.addEventListener('DOMContentLoaded', function () {
-        {% if opcoes_db %}
-        document.getElementById('loading-area').style.display = 'none';
-        document.getElementById('content-area').style.display = 'block';
-        showAlert('Dados locais carregados. Clique em "Carregar do OpLab" para dados atualizados.', 'info');
-        {% endif %}
-    });
 </script>
+
+{% block scripts %}{% endblock %}
 {% endblock %}
