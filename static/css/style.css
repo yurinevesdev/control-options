@@ -12,7 +12,9 @@
     --text: #e8eaf0;
     --text2: #8b90a0;
     --text3: #555c70;
+    --text-muted: #8b90a0;
     --accent: #4ade80;
+    --accent-hover: #60a5fa;
     --cyan: #22d3ee;
     --blue: #60a5fa;
     --amber: #fbbf24;
@@ -20,6 +22,10 @@
     --purple: #a78bfa;
     --green: #4ade80;
     --orange: #fb923c;
+    --pnl-positive: #4ade80;
+    --pnl-negative: #f87171;
+    --iv-color: #fbbf24;
+    --font-mono: 'JetBrains Mono', monospace;
     --r: 8px;
     --rlg: 12px;
     --rxl: 16px;
@@ -952,6 +958,368 @@ input[type="checkbox"] {
 .chart-container {
     position: relative;
     height: 220px;
+}
+
+/* ─── PÁGINA DE OPÇÕES ──────────────────────────────────── */
+.page-header {
+    margin-bottom: 1.5rem;
+}
+
+.page-header h1 {
+    font-size: 1.5rem;
+    margin-bottom: 0.25rem;
+}
+
+.page-header p {
+    color: var(--text-muted);
+    font-size: 0.875rem;
+}
+
+.opcoes-controls {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.opcoes-table-wrapper {
+    overflow-x: auto;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+}
+
+.opcoes-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+}
+
+.opcoes-table th {
+    background: var(--bg-secondary, var(--bg3));
+    padding: 0.75rem 1rem;
+    text-align: left;
+    font-weight: 600;
+    color: var(--text-primary, var(--text));
+    border-bottom: 2px solid var(--border);
+    position: sticky;
+    top: 0;
+}
+
+.opcoes-table td {
+    padding: 0.625rem 1rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.opcoes-table tbody tr:hover {
+    background: var(--bg-secondary, var(--bg3));
+}
+
+.opcoes-table .ticker-cell {
+    font-weight: 600;
+}
+
+.opcoes-table .ticker-link {
+    color: var(--accent);
+    text-decoration: none;
+}
+
+.opcoes-table .ticker-link:hover {
+    text-decoration: underline;
+}
+
+.opcoes-table .vi-cell {
+    font-family: var(--font-mono);
+    color: var(--iv-color);
+}
+
+.opcoes-table .iv-rank-cell,
+.opcoes-table .iv-perc-cell {
+    text-align: center;
+}
+
+.opcoes-table .iv-badge {
+    display: inline-block;
+    padding: 0.125rem 0.5rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    font-family: var(--font-mono);
+}
+
+.opcoes-table .iv-high {
+    background: rgba(248, 113, 113, 0.15);
+    color: var(--pnl-negative);
+}
+
+.opcoes-table .iv-low {
+    background: rgba(74, 222, 128, 0.15);
+    color: var(--pnl-positive);
+}
+
+.opcoes-table .pnl-positivo {
+    color: var(--pnl-positive);
+}
+
+.opcoes-table .pnl-negativo {
+    color: var(--pnl-negative);
+}
+
+.opcoes-table .time-cell {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+}
+
+.opcoes-table .btn-detalhes {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    background: var(--accent);
+    color: var(--bg-primary, var(--bg));
+    text-decoration: none;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.opcoes-table .btn-detalhes:hover {
+    background: var(--accent-hover);
+    text-decoration: none;
+}
+
+.opcoes-table .iv-alto {
+    background: rgba(248, 113, 113, 0.05);
+}
+
+.opcoes-controls .status-text {
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+.opcoes-controls .status-loading {
+    color: var(--accent);
+}
+
+.opcoes-controls .status-success {
+    color: var(--pnl-positive);
+}
+
+.opcoes-controls .status-error {
+    color: var(--pnl-negative);
+}
+
+.opcoes-empty-state {
+    text-align: center;
+    padding: 3rem 1rem;
+}
+
+.opcoes-empty-state .empty-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+}
+
+.opcoes-empty-state h3 {
+    margin-bottom: 0.5rem;
+}
+
+.opcoes-empty-state p {
+    color: var(--text-muted);
+}
+
+@media (max-width: 768px) {
+
+    .opcoes-table th,
+    .opcoes-table td {
+        padding: 0.5rem 0.5rem;
+        font-size: 0.75rem;
+    }
+}
+
+/* ─── PÁGINA DE OPÇÕES DETALHADAS ───────────────────────── */
+.opcoes-header {
+    background: linear-gradient(135deg, var(--bg4) 0%, var(--bg3) 100%);
+    color: var(--text);
+    padding: 2rem;
+    border-radius: 0.5rem;
+    margin-bottom: 2rem;
+}
+
+.opcoes-header h1 {
+    margin: 0;
+    font-size: 2rem;
+}
+
+.opcoes-header p {
+    margin: 0.5rem 0 0;
+    opacity: 0.8;
+}
+
+.btn-group {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-bottom: 1.5rem;
+}
+
+.btn-secondary {
+    background: var(--bg4);
+    color: var(--text);
+}
+
+.btn-secondary:hover {
+    background: var(--bg5);
+}
+
+.btn-success {
+    background: var(--pnl-positive);
+    color: var(--bg);
+}
+
+.btn-success:hover {
+    opacity: 0.88;
+}
+
+.series-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    margin-bottom: 1rem;
+    border-bottom: 2px solid var(--border);
+    padding-bottom: 0.5rem;
+}
+
+.series-tab {
+    padding: 0.5rem 1rem;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    border-radius: 0.25rem;
+    color: var(--text2);
+    font-family: inherit;
+    font-size: 0.875rem;
+    transition: all 0.15s;
+}
+
+.series-tab:hover {
+    background: var(--bg3);
+}
+
+.series-tab.active {
+    background: var(--accent);
+    color: var(--bg);
+}
+
+.opcoes-detalhadas-table th {
+    text-align: right;
+    background: var(--bg3);
+}
+
+.opcoes-detalhadas-table th:first-child {
+    text-align: left;
+}
+
+.opcoes-detalhadas-table td {
+    text-align: right;
+}
+
+.opcoes-detalhadas-table td:first-child {
+    text-align: left;
+}
+
+.opcoes-detalhadas-table .call-row {
+    color: var(--green);
+}
+
+.opcoes-detalhadas-table .put-row {
+    color: var(--red);
+}
+
+.moneyness-itm {
+    background: rgba(74, 222, 128, 0.15);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 12px;
+    color: var(--green);
+}
+
+.moneyness-atm {
+    background: rgba(251, 191, 36, 0.15);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 12px;
+    color: var(--amber);
+}
+
+.moneyness-otm {
+    background: rgba(248, 113, 113, 0.15);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 12px;
+    color: var(--red);
+}
+
+.loading {
+    text-align: center;
+    padding: 4rem;
+    color: var(--text2);
+}
+
+.spinner {
+    border: 4px solid var(--bg3);
+    border-top: 4px solid var(--accent);
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 1rem;
+}
+
+@keyframes spin {
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+.opcoes-detalhadas .vi-badge {
+    background: rgba(167, 139, 250, 0.15);
+    color: var(--purple);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 12px;
+}
+
+.opcoes-detalhadas .tipo-badge {
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.opcoes-detalhadas .tipo-call {
+    background: rgba(74, 222, 128, 0.15);
+    color: var(--green);
+}
+
+.opcoes-detalhadas .tipo-put {
+    background: rgba(248, 113, 113, 0.15);
+    color: var(--red);
+}
+
+.opcoes-detalhadas-container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 1rem;
+}
+
+.opcoes-db-cache {
+    margin-top: 2rem;
+    padding: 1rem;
+    background: var(--bg3);
+    border-radius: 8px;
 }
 
 /* ─── FONTES MONO ───────────────────────────────────────── */
