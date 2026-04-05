@@ -47,6 +47,7 @@ from eagle.opcoes_scraper import (
     salvar_opcoes_detalhadas,
     buscar_opcoes_serie,
 )
+from eagle.sugestoes import analisar_sugestoes
 
 # -------------------------------------------------------------------------
 # Setup
@@ -689,6 +690,92 @@ def create_app() -> Flask:
             brl=brl,
             fmt_date=fmt_date,
         )
+
+    # ---- Rotas de sugestão de estruturas ----
+
+    @app.route("/sugestoes")
+    def sugestoes_page():
+        """Página de sugestão de estruturas de opções."""
+        estrategias = [
+            ("auto", "Análise Automática"),
+            ("trava_baixa_put", "Trava de Baixa com PUT (Bear Put Spread)"),
+            ("trava_alta_put", "Trava de Alta com PUT (Bull Put Spread)"),
+            ("trava_alta_call", "Trava de Baixa com CALL (Bear Call Spread)"),
+            ("compra_call", "Compra de CALL"),
+            ("compra_put", "Compra de PUT"),
+        ]
+        return render_template(
+            "sugestoes.html",
+            estrategias=estrategias,
+            brl=brl,
+            fmt_date=fmt_date,
+        )
+
+    @app.route("/api/sugestoes", methods=["POST"])
+    @rate_limit(max_calls=10, window=60)
+    def api_sugestoes():
+        """API para análise e sugestão de estruturas."""
+        data = request.get_json(force=True, silent=True) or {}
+        
+        ticker = (data.get("ticker") or "").strip().upper()
+        if not ticker:
+            return jsonify({"error": "Informe o ticker do ativo."}), 400
+        
+        estrategia = (data.get("estrategia") or "auto").strip()
+        dias_min = data.get("dias_min", 5)
+        dias_max = data.get("dias_max", 180)
+        
+        try:
+            # Buscar opções detalhadas do DB
+            opcoes_db = buscar_opcoes_serie(db, ticker)
+            
+            # Se não tem no DB, tentar buscar do OpLab
+            if not opcoes_db:
+                log.info("Opções para %s não encontradas no DB, buscando do OpLab...", ticker)
+                opcoes_api = formatar_opcoes_tabela(ticker)
+                if not opcoes_api:
+                    return jsonify({
+                        "error": f"Nenhuma opção encontrada para {ticker}. Tente salvar os dados primeiro."
+                    }), 404
+                opcoes_db = opcoes_api
+            
+            # Obter preço atual
+            preco_atual = data.get("preco_atual")
+            if not preco_atual:
+                # Tentar obter do cache de opções
+                cache = carregar_cache_opcoes()
+                for item in cache:
+                    if item.get("ticker", "").upper() == ticker:
+                        preco_atual = item.get("preco")
+                        break
+                
+                if not preco_atual:
+                    # Usar o último preço das opções
+                    for opt in opcoes_db:
+                        if opt.get("ultimo_preco", 0) > 0:
+                            strike = opt.get("strike", 0)
+                            if strike > 0:
+                                preco_atual = strike  # Aproximação
+                                break
+            
+            if not preco_atual or preco_atual <= 0:
+                return jsonify({"error": "Não foi possível obter o preço atual do ativo."}), 400
+            
+            # Executar análise
+            resultado = analisar_sugestoes(
+                ticker=ticker,
+                options=opcoes_db,
+                preco_atual=float(preco_atual),
+                estrategia=estrategia,
+                vencimento_dias_min=int(dias_min),
+                vencimento_dias_max=int(dias_max),
+            )
+            
+            return jsonify(resultado)
+            
+        except Exception as e:
+            log.error("Erro ao analisar sugestões para %s: %s", ticker, e)
+            return jsonify({"error": f"Erro interno: {str(e)}"}), 500
 
     return app
 

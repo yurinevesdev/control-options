@@ -1,0 +1,653 @@
+{% extends "base.html" %}
+{% set active_page = 'sugestoes' %}
+
+{% block title %}Sugestões de Estruturas — Yuri System{% endblock %}
+
+{% block body %}
+<div class="page-content">
+    <div class="page-header">
+        <h1>💡 Sugestões de Estruturas</h1>
+        <p>Análise automática das melhores estratégias baseado nos dados de opções disponíveis.</p>
+    </div>
+
+    <div class="sugestoes-controls">
+        <div class="form-group-inline">
+            <label for="ticker-input" class="form-label-inline">Ativo (Ticker)</label>
+            <input type="text" id="ticker-input" class="ticker-input" placeholder="Ex: PETR4" value="PETR4" uppercase>
+        </div>
+
+        <div class="form-group-inline">
+            <label for="estrategia-select" class="form-label-inline">Estratégia</label>
+            <select id="estrategia-select">
+                {% for val, label in estrategias %}
+                <option value="{{ val }}" {% if val=='auto' %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-group-inline">
+            <label for="preco-input" class="form-label-inline">Preço Atual</label>
+            <input type="number" id="preco-input" class="form-input" step="0.01" placeholder="Automático">
+        </div>
+
+        <div class="form-group-inline">
+            <label for="dias-input" class="form-label-inline">Vencimento (dias)</label>
+            <div class="dias-range">
+                <input type="number" id="dias-min" class="form-input-small" value="5" min="1" max="365"
+                    placeholder="Min">
+                <span>até</span>
+                <input type="number" id="dias-max" class="form-input-small" value="180" min="1" max="365"
+                    placeholder="Max">
+            </div>
+        </div>
+    </div>
+
+    <div class="controls-actions">
+        <button id="btn-analisar" class="btn btn-primary" onclick="analisar()">
+            🔍 Analisar
+        </button>
+        <span id="status-msg" class="status-text"></span>
+    </div>
+
+    <!-- Loading -->
+    <div id="loading-area" class="sugestoes-loading" style="display:none;">
+        <div class="spinner"></div>
+        <p>Analisando opções...</p>
+    </div>
+
+    <!-- Resultados -->
+    <div id="resultado-area" style="display:none;">
+        <!-- Análise de Tendência -->
+        <div class="card tendencia-card">
+            <div class="card-title">📊 Análise de Tendência</div>
+            <div id="tendencia-content"></div>
+        </div>
+
+        <!-- Status da Estratégia -->
+        <div id="status-card" class="card">
+            <div class="card-title">✅ Status da Estratégia</div>
+            <div id="status-content"></div>
+        </div>
+
+        <!-- Sugestões -->
+        <div id="sugestoes-card" class="card" style="display:none;">
+            <div class="card-title">💡 Sugestões</div>
+            <div id="sugestoes-content"></div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .sugestoes-controls {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+        margin-bottom: 1rem;
+        align-items: flex-end;
+    }
+
+    .form-group-inline {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+        min-width: 140px;
+        flex: 1;
+    }
+
+    .form-label-inline {
+        font-size: 0.75rem;
+        color: var(--text2);
+        font-weight: 500;
+    }
+
+    .ticker-input {
+        width: 100px;
+        text-transform: uppercase;
+        font-weight: 600;
+        padding: 0.5rem;
+        border-radius: 6px;
+        background: var(--bg3);
+        border: 1px solid var(--border);
+        color: var(--text);
+        font-family: var(--font-mono);
+        font-size: 0.875rem;
+    }
+
+    .form-input {
+        width: 120px;
+        padding: 0.5rem;
+        border-radius: 6px;
+        background: var(--bg3);
+        border: 1px solid var(--border);
+        color: var(--text);
+        font-family: var(--font-mono);
+        font-size: 0.875rem;
+    }
+
+    .form-input-small {
+        width: 70px;
+        padding: 0.5rem;
+        border-radius: 6px;
+        background: var(--bg3);
+        border: 1px solid var(--border);
+        color: var(--text);
+        font-family: var(--font-mono);
+        font-size: 0.875rem;
+    }
+
+    .dias-range {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .dias-range span {
+        color: var(--text3);
+        font-size: 0.75rem;
+    }
+
+    .controls-actions {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .status-text {
+        font-size: 0.875rem;
+        font-weight: 500;
+    }
+
+    .tendencia-card .tendencia-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1rem;
+    }
+
+    .tendencia-item {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+
+    .tendencia-label {
+        font-size: 0.75rem;
+        color: var(--text3);
+    }
+
+    .tendencia-value {
+        font-weight: 600;
+        font-size: 1rem;
+    }
+
+    .tendencia-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .badge-alta {
+        background: rgba(74, 222, 128, 0.15);
+        color: var(--pnl-positive);
+    }
+
+    .badge-baixa {
+        background: rgba(248, 113, 113, 0.15);
+        color: var(--pnl-negative);
+    }
+
+    .badge-lateral {
+        background: rgba(251, 191, 36, 0.15);
+        color: var(--amber);
+    }
+
+    .sugestao-card {
+        background: var(--bg3);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .sugestao-card:last-child {
+        margin-bottom: 0;
+    }
+
+    .sugestao-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.75rem;
+    }
+
+    .sugestao-tipo {
+        font-weight: 600;
+        font-size: 1rem;
+    }
+
+    .sugestao-score {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        background: var(--bg5);
+        font-size: 0.75rem;
+    }
+
+    .score-high {
+        background: rgba(74, 222, 128, 0.15);
+        color: var(--pnl-positive);
+    }
+
+    .score-medium {
+        background: rgba(251, 191, 36, 0.15);
+        color: var(--amber);
+    }
+
+    .score-low {
+        background: rgba(248, 113, 113, 0.15);
+        color: var(--pnl-negative);
+    }
+
+    .sugestao-pernas {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.75rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .perna-box {
+        background: var(--bg4);
+        border-radius: 4px;
+        padding: 0.5rem;
+    }
+
+    .perna-label {
+        font-size: 0.65rem;
+        color: var(--text3);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 0.25rem;
+    }
+
+    .perna-simbolo {
+        font-family: var(--font-mono);
+        font-weight: 600;
+        font-size: 0.8rem;
+    }
+
+    .perna-detalhes {
+        font-size: 0.7rem;
+        color: var(--text2);
+        margin-top: 0.25rem;
+    }
+
+    .sugestao-metricas {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 0.5rem;
+    }
+
+    .metrica-item {
+        display: flex;
+        flex-direction: column;
+        gap: 0.15rem;
+        text-align: center;
+    }
+
+    .metrica-label {
+        font-size: 0.65rem;
+        color: var(--text3);
+    }
+
+    .metrica-valor {
+        font-family: var(--font-mono);
+        font-weight: 500;
+        font-size: 0.85rem;
+    }
+
+    .metrica-valor.positivo {
+        color: var(--pnl-positive);
+    }
+
+    .metrica-valor.negativo {
+        color: var(--pnl-negative);
+    }
+
+    .status-sucesso {
+        color: var(--pnl-positive);
+    }
+
+    .status-erro {
+        color: var(--pnl-negative);
+    }
+
+    .status-info {
+        color: var(--accent);
+    }
+
+    .observacoes-box {
+        background: var(--bg4);
+        border-left: 3px solid var(--accent);
+        padding: 0.75rem;
+        border-radius: 4px;
+        margin-top: 0.5rem;
+        font-size: 0.875rem;
+    }
+
+    .nao-apto-box {
+        background: rgba(251, 191, 36, 0.1);
+        border-left: 3px solid var(--amber);
+        padding: 0.75rem;
+        border-radius: 4px;
+        margin-top: 0.5rem;
+    }
+
+    .sugestoes-loading {
+        text-align: center;
+        padding: 3rem;
+    }
+
+    @media (max-width: 768px) {
+        .sugestoes-controls {
+            flex-direction: column;
+        }
+
+        .form-group-inline {
+            min-width: auto;
+            width: 100%;
+        }
+
+        .tendencia-grid {
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .sugestao-pernas {
+            grid-template-columns: 1fr;
+        }
+
+        .sugestao-metricas {
+            grid-template-columns: 1fr 1fr;
+        }
+    }
+</style>
+
+<script>
+    async function analisar() {
+        const ticker = document.getElementById('ticker-input').value.trim().toUpperCase();
+        const estrategia = document.getElementById('estrategia-select').value;
+        const precoAtual = document.getElementById('preco-input').value;
+        const diasMin = parseInt(document.getElementById('dias-min').value) || 5;
+        const diasMax = parseInt(document.getElementById('dias-max').value) || 180;
+        const btn = document.getElementById('btn-analisar');
+        const status = document.getElementById('status-msg');
+        const loadingArea = document.getElementById('loading-area');
+        const resultadoArea = document.getElementById('resultado-area');
+
+        if (!ticker) {
+            status.textContent = '⚠️ Informe o ticker do ativo.';
+            status.className = 'status-text status-erro';
+            return;
+        }
+
+        btn.disabled = true;
+        btn.textContent = '⏳ Analisando...';
+        status.textContent = '';
+        loadingArea.style.display = 'block';
+        resultadoArea.style.display = 'none';
+
+        try {
+            const body = { ticker, estrategia, dias_min: diasMin, dias_max: diasMax };
+            if (precoAtual) {
+                body.preco_atual = parseFloat(precoAtual);
+            }
+
+            const resp = await fetch('/api/sugestoes', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            });
+
+            const data = await resp.json();
+
+            if (!resp.ok) {
+                throw new Error(data.error || 'Erro ao analisar');
+            }
+
+            renderizarResultado(data);
+
+        } catch (err) {
+            status.textContent = '❌ ' + err.message;
+            status.className = 'status-text status-erro';
+            loadingArea.style.display = 'none';
+        } finally {
+            btn.disabled = false;
+            btn.textContent = '🔍 Analisar';
+        }
+    }
+
+    function renderizarResultado(data) {
+        const loadingArea = document.getElementById('loading-area');
+        const resultadoArea = document.getElementById('resultado-area');
+        loadingArea.style.display = 'none';
+        resultadoArea.style.display = 'block';
+
+        // Tendência
+        const tendencia = data.analise_tendencia || {};
+        const tendenciaHtml = `
+            <div class="tendencia-grid">
+                <div class="tendencia-item">
+                    <span class="tendencia-label">Tendência</span>
+                    <span class="tendencia-badge badge-${tendencia.tendencia || 'lateral'}">
+                        ${tendencia.tendencia === 'altas' ? '📈' : tendencia.tendencia === 'baixa' ? '📉' : '➡️'}
+                        ${tendencia.tendencia ? tendencia.tendencia.charAt(0).toUpperCase() + tendencia.tendencia.slice(1) : '—'}
+                    </span>
+                </div>
+                <div class="tendencia-item">
+                    <span class="tendencia-label">IV Média</span>
+                    <span class="tendencia-value">${tendencia.iv_media || '—'}%</span>
+                </div>
+                <div class="tendencia-item">
+                    <span class="tendencia-label">Put/Call Ratio</span>
+                    <span class="tendencia-value">${tendencia.put_call_ratio || '—'}</span>
+                </div>
+            </div>
+        `;
+        document.getElementById('tendencia-content').innerHTML = tendenciaHtml;
+
+        // Status
+        const apdo = data.apto_para_estrategia;
+        let statusHtml = '';
+        if (apdo) {
+            statusHtml = `<div class="observacoes-box status-sucesso">
+                ✅ ${data.observacoes || 'Estratégia recomendada.'}
+            </div>`;
+        } else {
+            statusHtml = `<div class="nao-apto-box status-info">
+                ⚠️ <strong>Não recomendado no momento:</strong><br>
+                ${data.motivo || 'Critérios não atendidos.'}
+                ${data.observacoes ? '<br><br><em>' + data.observacoes + '</em>' : ''}
+            </div>`;
+        }
+        document.getElementById('status-content').innerHTML = statusHtml;
+
+        // Sugestões
+        const sugestoes = data.sugestoes || [];
+        const sugestoesCard = document.getElementById('sugestoes-card');
+
+        if (sugestoes.length === 0) {
+            sugestoesCard.style.display = 'none';
+        } else {
+            sugestoesCard.style.display = 'block';
+            let sugestoesHtml = '';
+
+            for (const sug of sugestoes) {
+                const scoreClass = sug.score >= 60 ? 'score-high' : sug.score >= 30 ? 'score-medium' : 'score-low';
+
+                sugestoesHtml += `
+                    <div class="sugestao-card">
+                        <div class="sugestao-header">
+                            <span class="sugestao-tipo">${sug.tipo || 'Estratégia'}</span>
+                            <span class="sugestao-score ${scoreClass}">⭐ Score: ${sug.score || 0}</span>
+                        </div>
+                `;
+
+                // Pernas (para spreads)
+                if (sug.perna_compra || sug.perna_venda) {
+                    sugestoesHtml += `<div class="sugestao-pernas">`;
+
+                    if (sug.perna_compra) {
+                        sugestoesHtml += `
+                            <div class="perna-box">
+                                <div class="perna-label">🟢 Compra</div>
+                                <div class="perna-simbolo">${sug.perna_compra.simbolo || '—'}</div>
+                                <div class="perna-detalhes">
+                                    Strike: <b>${sug.perna_compra.strike?.toFixed(2)}</b> |
+                                    Prêmio: R$ ${sug.perna_compra.premio?.toFixed(2)} |
+                                    Delta: ${sug.perna_compra.delta?.toFixed(3)}
+                                </div>
+                                <div class="perna-detalhes">
+                                    VI: ${sug.perna_compra.vi?.toFixed(1)}% |
+                                    Moneyness: ${sug.perna_compra.moneyness || '—'}
+                                </div>
+                            </div>
+                        `;
+                    }
+
+                    if (sug.perna_venda) {
+                        sugestoesHtml += `
+                            <div class="perna-box">
+                                <div class="perna-label">🔴 Venda</div>
+                                <div class="perna-simbolo">${sug.perna_venda.simbolo || '—'}</div>
+                                <div class="perna-detalhes">
+                                    Strike: <b>${sug.perna_venda.strike?.toFixed(2)}</b> |
+                                    Prêmio: R$ ${sug.perna_venda.premio?.toFixed(2)} |
+                                    Delta: ${sug.perna_venda.delta?.toFixed(3)}
+                                </div>
+                                <div class="perna-detalhes">
+                                    VI: ${sug.perna_venda.vi?.toFixed(1)}% |
+                                    Moneyness: ${sug.perna_venda.moneyness || '—'}
+                                </div>
+                            </div>
+                        `;
+                    }
+
+                    sugestoesHtml += `</div>`;
+                } else if (sug.simbolo) {
+                    // Opção simples
+                    sugestoesHtml += `
+                        <div style="background: var(--bg4); padding: 0.5rem; border-radius: 4px; margin-bottom: 0.75rem;">
+                            <div class="perna-simbolo">${sug.simbolo}</div>
+                            <div class="perna-detalhes">
+                                Strike: <b>${sug.strike?.toFixed(2)}</b> | 
+                                Prêmio: R$ ${sug.premio?.toFixed(2)} | 
+                                Delta: ${sug.delta?.toFixed(3)} |
+                                VI: ${sug.vi?.toFixed(1)}%
+                            </div>
+                        </div>
+                    `;
+                }
+
+                // Métricas
+                sugestoesHtml += `<div class="sugestao-metricas">`;
+
+                if (sug.debito !== undefined) {
+                    sugestoesHtml += `
+                        <div class="metrica-item">
+                            <span class="metrica-label">Débito</span>
+                            <span class="metrica-valor negativo">R$ ${sug.debito.toFixed(2)}</span>
+                        </div>
+                    `;
+                }
+                if (sug.credito !== undefined) {
+                    sugestoesHtml += `
+                        <div class="metrica-item">
+                            <span class="metrica-label">Crédito</span>
+                            <span class="metrica-valor positivo">R$ ${sug.credito.toFixed(2)}</span>
+                        </div>
+                    `;
+                }
+                if (sug.lucro_max !== undefined) {
+                    sugestoesHtml += `
+                        <div class="metrica-item">
+                            <span class="metrica-label">Lucro Máx.</span>
+                            <span class="metrica-valor positivo">R$ ${sug.lucro_max.toFixed(2)}</span>
+                        </div>
+                    `;
+                }
+                if (sug.perda_max !== undefined) {
+                    sugestoesHtml += `
+                        <div class="metrica-item">
+                            <span class="metrica-label">Perda Máx.</span>
+                            <span class="metrica-valor negativo">R$ ${sug.perda_max.toFixed(2)}</span>
+                        </div>
+                    `;
+                }
+                if (sug.break_even !== undefined) {
+                    sugestoesHtml += `
+                        <div class="metrica-item">
+                            <span class="metrica-label">Break-Even</span>
+                            <span class="metrica-valor">R$ ${sug.break_even.toFixed(2)}</span>
+                        </div>
+                    `;
+                }
+                if (sug.retorno_pct !== undefined) {
+                    sugestoesHtml += `
+                        <div class="metrica-item">
+                            <span class="metrica-label">Retorno/Risco</span>
+                            <span class="metrica-valor ${sug.retorno_pct > 100 ? 'positivo' : ''}">${sug.retorno_pct.toFixed(0)}%</span>
+                        </div>
+                    `;
+                }
+                if (sug.alavancagem !== undefined) {
+                    sugestoesHtml += `
+                        <div class="metrica-item">
+                            <span class="metrica-label">Alavancagem</span>
+                            <span class="metrica-valor">${sug.alavancagem.toFixed(1)}x</span>
+                        </div>
+                    `;
+                }
+                if (sug.dias_vencimento !== undefined) {
+                    sugestoesHtml += `
+                        <div class="metrica-item">
+                            <span class="metrica-label">Dias até Venc.</span>
+                            <span class="metrica-valor">${sug.dias_vencimento}</span>
+                        </div>
+                    `;
+                }
+                if (sug.poe !== undefined) {
+                    sugestoesHtml += `
+                        <div class="metrica-item">
+                            <span class="metrica-label">Prob. ITM</span>
+                            <span class="metrica-valor">${sug.poe.toFixed(1)}%</span>
+                        </div>
+                    `;
+                }
+
+                sugestoesHtml += `</div></div>`;
+            }
+
+            document.getElementById('sugestoes-content').innerHTML = sugestoesHtml;
+        }
+    }
+
+    // Input uppercase
+    document.getElementById('ticker-input').addEventListener('input', function () {
+        this.value = this.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    });
+
+    // Enter key
+    document.querySelectorAll('.sugestoes-controls input').forEach(function (el) {
+        el.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') {
+                analisar();
+            }
+        });
+    });
+</script>
+{% endblock %}

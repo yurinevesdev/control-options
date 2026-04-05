@@ -32,6 +32,8 @@
                 href="{{ url_for('dashboard') }}">Dashboard</a>
             <a class="nav-btn{% if active_page == 'opcoes' %} active{% endif %}"
                 href="{{ url_for('opcoes_page') }}">Opções</a>
+            <a class="nav-btn{% if active_page == 'sugestoes' %} active{% endif %}"
+                href="{{ url_for('sugestoes_page') }}">Sugestões</a>
         </nav>
         <div class="header-right">
             <span class="db-badge" id="db-badge">● DB Ativo</span>
