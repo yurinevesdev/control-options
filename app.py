@@ -43,6 +43,9 @@ from eagle.opcoes_scraper import (
     atualizar_dados_opcoes,
     buscar_opcoes_dados,
     carregar_cache as carregar_cache_opcoes,
+    formatar_opcoes_tabela,
+    salvar_opcoes_detalhadas,
+    buscar_opcoes_serie,
 )
 
 # -------------------------------------------------------------------------
@@ -581,13 +584,14 @@ def create_app() -> Flask:
     @app.route("/opcoes")
     def opcoes_page():
         """Página de visualização de dados de opções (IV, IV Rank, etc.)."""
+        tickers_comuns = ["PETR4", "VALE3", "ITUB4", "BBDC4", "ABEV3", "BBAS3", "WEGE3"]
+        
         # Usar dados do cache primeiro, se vazio tentar do banco
         cache = carregar_cache_opcoes()
         
         # Se cache vazio, busca do banco
         if not cache:
             try:
-                from eagle.opcoes_scraper import buscar_opcoes_dados
                 dados_db = buscar_opcoes_dados(db)
                 # Converter formato do banco para formato do cache
                 cache = [
@@ -608,6 +612,80 @@ def create_app() -> Flask:
         return render_template(
             "opcoes.html",
             ativos=cache,
+            tickers_comuns=tickers_comuns,
+            brl=brl,
+            fmt_date=fmt_date,
+        )
+
+    # ---- Rotas de séries de opções detalhadas ----
+
+    @app.route("/api/opcoes/series/<ticker>", methods=["GET"])
+    @rate_limit(max_calls=30, window=60)
+    def api_opcoes_series(ticker: str):
+        """Retorna todas as séries de opções de um ticker com dados detalhados."""
+        ticker = ticker.upper()
+        mes = request.args.get("mes", type=int)
+        ano = request.args.get("ano", type=int)
+        
+        try:
+            opcoes = formatar_opcoes_tabela(ticker, mes=mes, ano=ano)
+            if not opcoes:
+                return jsonify({"error": f"Nenhuma opção encontrada para {ticker}"}), 404
+            
+            # Agrupar por série para facilitar consumo pelo frontend
+            series = {}
+            for opt in opcoes:
+                serie = opt["serie"]
+                if serie not in series:
+                    series[serie] = {
+                        "data": serie,
+                        "dias_vencimento": opt["dias_vencimento"],
+                        "opcoes": [],
+                    }
+                series[serie]["opcoes"].append(opt)
+            
+            return jsonify({
+                "ticker": ticker,
+                "total_opcoes": len(opcoes),
+                "total_series": len(series),
+                "series": series,
+            })
+        except Exception as e:
+            log.error("Erro ao buscar opções de %s: %s", ticker, e)
+            return jsonify({"error": str(e)}), 500
+
+    @app.route("/api/opcoes/salvar/<ticker>", methods=["POST"])
+    @rate_limit(max_calls=5, window=300)
+    def api_salvar_opcoes_detalhadas(ticker: str):
+        """Salva opções detalhadas no banco de dados."""
+        ticker = ticker.upper()
+        try:
+            opcoes = formatar_opcoes_tabela(ticker)
+            if not opcoes:
+                return jsonify({"error": f"Nenhuma opção encontrada para {ticker}"}), 404
+            
+            count = salvar_opcoes_detalhadas(db, ticker, opcoes)
+            return jsonify({
+                "success": True,
+                "total": count,
+                "message": f"{count} opções salvas para {ticker}",
+            })
+        except Exception as e:
+            log.error("Erro ao salvar opções de %s: %s", ticker, e)
+            return jsonify({"error": str(e)}), 500
+
+    @app.route("/opcoes/<ticker>")
+    def opcoes_detalhadas_page(ticker: str):
+        """Página de visualização de opções detalhadas de um ticker."""
+        ticker = ticker.upper()
+        
+        # Buscar dados do cache/DB primeiro
+        opcoes_db = buscar_opcoes_serie(db, ticker)
+        
+        return render_template(
+            "opcoes_detalhadas.html",
+            ticker=ticker,
+            opcoes_db=opcoes_db,
             brl=brl,
             fmt_date=fmt_date,
         )
