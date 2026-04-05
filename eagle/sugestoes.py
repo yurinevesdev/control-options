@@ -44,8 +44,14 @@ SCORE_LIQUIDEZ = {
     "MuitoBoa": 80,
     "Boa": 60,
     "Razoavel": 40,
+    "Media": 40,       # Liquidez média
+    "Media liquidez": 40,
     "Baixa": 20,
+    "Baixa liquidez": 20,
     "MuitoBaixa": 10,
+    "Baixissima liquidez": 10,
+    "Nenhuma liquidez": 0,
+    "Nenhuma": 0,
     "": 0,
 }
 
@@ -426,9 +432,31 @@ def decidir_estrategia(
 # ============================================================================
 
 def _liquidez_score(texto: str) -> int:
-    for key, val in SCORE_LIQUIDEZ.items():
-        if key and key.lower() in texto.lower():
-            return val
+    """Retorna score de liquidez baseado no texto."""
+    if not texto:
+        return 0
+    texto_lower = texto.lower()
+    
+    # Match exato primeiro
+    if texto_lower in SCORE_LIQUIDEZ:
+        return SCORE_LIQUIDEZ[texto_lower]
+    
+    # Match parcial por palavras-chave
+    if "alta" in texto_lower and "baixa" not in texto_lower and "nenhuma" not in texto_lower:
+        return 100
+    if "muitobo" in texto_lower or "muito boa" in texto_lower:
+        return 80
+    if texto_lower.startswith("boa") or "liquidez boa" in texto_lower:
+        return 60
+    if "media" in texto_lower or "média" in texto_lower or "razoavel" in texto_lower:
+        return 40
+    if "baixiss" in texto_lower:
+        return 10
+    if "baixa" in texto_lower and "nenhuma" not in texto_lower:
+        return 20
+    if "nenhuma" in texto_lower or "nenhum" in texto_lower:
+        return 0
+    
     return 0
 
 
@@ -443,21 +471,24 @@ def _meio_preco(bid: float, ask: float) -> float:
 
 
 def _filtro_opcoes(options: list[dict]) -> list[dict]:
+    """Filtra opções com critérios flexíveis. Aceita opções com strike válido e VI > 0."""
     filtradas = []
     for opt in options:
-        liq_text = opt.get("liquidez_texto", "")
-        bid = opt.get("bid", 0) or 0
-        ask = opt.get("ask", 0) or 0
-        liq_score = _liquidez_score(liq_text)
-        if liq_score < SCORE_LIQUIDEZ.get(LIQUIDEZ_MIN, 0):
-            continue
-        if bid > 0 and ask > 0:
-            spread = _bid_ask_spread_pct(bid, ask)
-            if spread > MAX_BID_ASK_DIFF_PCT:
-                continue
+        # Verificar strike primeiro (mais importante)
         strike = opt.get("strike", 0) or 0
         if strike <= 0:
             continue
+        
+        # Aceitar se tem VI válido (indicador de que a opção existe e tem dados)
+        vi = opt.get("vi", 0) or 0
+        if vi <= 0:
+            # Sem VI, verificar se tem pelo menos um preço de mercado
+            bid = opt.get("bid", 0) or 0
+            ask = opt.get("ask", 0) or 0
+            ultimo = opt.get("ultimo_preco", 0) or 0
+            if bid <= 0 and ask <= 0 and ultimo <= 0:
+                continue
+        
         filtradas.append(opt)
     return filtradas
 
