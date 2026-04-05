@@ -1,5 +1,5 @@
 """
-Eagle System — aplicação Flask (port do controller js/app.js).
+Yuri System — aplicação Flask (port do controller js/app.js).
 """
 
 from __future__ import annotations
