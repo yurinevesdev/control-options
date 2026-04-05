@@ -576,6 +576,46 @@ def salvar_opcoes_detalhadas(db, ticker: str, options_data: list[dict]) -> int:
 def buscar_opcoes_serie(db, ticker: str, serie: str = None) -> list[dict]:
     """Busca opções detalhadas do DB para um ticker, opcionalmente filtra por série."""
     conn = db.connect()
+    
+    # Garantir que a tabela existe antes de consultar
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS opcoes_detalhes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ticker_original TEXT NOT NULL,
+            simbolo TEXT NOT NULL,
+            tipo TEXT NOT NULL,
+            serie TEXT NOT NULL,
+            dias_vencimento INTEGER,
+            strike REAL,
+            ultimo_preco REAL,
+            bid REAL,
+            ask REAL,
+            volume INTEGER,
+            volume_financeiro REAL,
+            variacao_pct REAL,
+            vi REAL,
+            delta REAL,
+            gamma REAL,
+            vega REAL,
+            theta REAL,
+            rho REAL,
+            moneyness TEXT,
+            liquidez_texto TEXT,
+            liquidez_level INTEGER,
+            poe REAL,
+            maturity_type TEXT,
+            cost_if_exercised REAL,
+            protection_rate REAL,
+            profit_rate REAL,
+            volatility REAL,
+            ve REAL,
+            atualizado_em TEXT
+        )
+        """
+    )
+    conn.commit()
+    
     if serie:
         cur = conn.execute(
             "SELECT * FROM opcoes_detalhes WHERE ticker_original = ? AND serie = ? ORDER BY strike, tipo",
