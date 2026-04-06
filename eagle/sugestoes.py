@@ -2,15 +2,13 @@
 Yuri System — Módulo de Sugestão de Estruturas de Opções.
 
 Analisa dados de opções disponíveis e sugere as melhores combinações
-para diferentes estratégias (travas, spreads, etc.).
-
-Usa indicadores técnicos (EMA, RSI, ADX, MACD, Bollinger) para
-classificar tendência, exaustão, volatilidade e momentum.
+baseado na matriz de decisão do ANALISE.md:
+- Classifica cenário: Esticado (Topo), Suporte (Fundo), Lateral
+- Cruza com IV Rank para definir estratégia ótima
 """
 
 from __future__ import annotations
 
-import math
 from typing import Any, Optional
 
 from eagle.logger import get_logger
@@ -21,409 +19,291 @@ log = get_logger("sugestoes")
 # Configurações
 # ============================================================================
 
-# Filtros mínimos de qualidade
-LIQUIDEZ_MIN = "Razoavel"
-MAX_BID_ASK_DIFF_PCT = 15
+# Filtros mínimos
 MIN_DAYS_TO_EXPIRY = 5
-MAX_IV_RANK = 80
+MAX_DAYS_TO_EXPIRY = 180
 
 # Indicadores técnicos - Thresholds
 RSI_OVERBOUGHT = 70
 RSI_OVERSOLD = 30
-ADX_STRONG = 25
+ADX_STRONG = 35
 ADX_WEAK = 20
 EMA21_STRETCH_THRESHOLD = 0.05  # 5%
 
-# Thresholds de volatilidade (bbWidth) - podem ser ajustados dinamicamente
-BB_WIDTH_LOW_THRESHOLD = 0.02   # 2%
-BB_WIDTH_HIGH_THRESHOLD = 0.06  # 6%
+# IV Rank thresholds
+IV_RANK_HIGH = 50
+IV_RANK_LOW = 30
 
-# Pesos para scoring
-SCORE_LIQUIDEZ = {
-    "Alta": 100,
-    "MuitoBoa": 80,
-    "Boa": 60,
-    "Razoavel": 40,
-    "Media": 40,       # Liquidez média
-    "Media liquidez": 40,
-    "Baixa": 20,
-    "Baixa liquidez": 20,
-    "MuitoBaixa": 10,
-    "Baixissima liquidez": 10,
-    "Nenhuma liquidez": 0,
-    "Nenhuma": 0,
-    "": 0,
+# Bollinger Width para squeeze detection
+BB_WIDTH_MINIMAL = 0.02  # 2% - níveis mínimos
+
+# Delta para probabilidade de sucesso
+DELTA_MIN_CREDITO = 0.15
+DELTA_MAX_CREDITO = 0.30
+
+# ============================================================================
+# Mapas de tradução
+# ============================================================================
+
+ESTRATEGIA_NOME = {
+    "BEAR_CALL_SPREAD": "Trava de Baixa com CALL (Bear Call Spread)",
+    "COMPRA_PUT": "Compra de PUT",
+    "PUT_SPREAD": "Trava de Baixa com PUT (Put Spread)",
+    "VENDA_PUT": "Venda de PUT (Cash Secured Put)",
+    "CREDIT_PUT_SPREAD": "Trava de Alta com PUT (Credit Put Spread)",
+    "COMPRA_CALL": "Compra de CALL",
+    "CALL_SPREAD": "Trava de Alta com CALL (Call Spread)",
+    "IRON_CONDOR": "Iron Condor",
+    "CALENDARIO": "Trava de Calendário",
+    "NENHUMA": "Aguardar melhor oportunidade",
+}
+
+CENARIO_NOME = {
+    "TOPO": "Esticado no Topo",
+    "FUNDO": "Suporte / Fundo",
+    "LATERAL": "Lateral (Consolidação)",
+}
+
+IV_NIVEL_NOME = {
+    "ALTA": "Alta",
+    "BAIXA": "Baixa",
 }
 
 # ============================================================================
 # Helpers de Indicadores Técnicos
 # ============================================================================
 
-def classificar_tendencia(
+def classificar_cenario(
     price: float,
     ema9: float,
     ema21: float,
     ema200: float,
-    adx: Optional[float] = None,
-) -> dict[str, Any]:
-    """
-    Classifica tendência do mercado.
-    
-    Retorna:
-        - direcao: "UP", "DOWN", "SIDEWAYS"
-        - forca: "STRONG", "WEAK", "MODERATE"
-        - adx_level: valor do ADX ou None
-    """
-    if price > ema200 and ema9 > ema21:
-        direcao = "UP"
-    elif price < ema200 and ema9 < ema21:
-        direcao = "DOWN"
-    else:
-        direcao = "SIDEWAYS"
-    
-    if adx is not None:
-        if adx >= ADX_STRONG:
-            forca = "STRONG"
-        elif adx < ADX_WEAK:
-            forca = "WEAK"
-        else:
-            forca = "MODERATE"
-    else:
-        forca = "MODERATE"
-    
-    return {
-        "direcao": direcao,
-        "forca": forca,
-        "adx_level": adx,
-    }
-
-
-def identificar_exaustao(
-    price: float,
     rsi: Optional[float] = None,
+    adx: Optional[float] = None,
     bb_upper: Optional[float] = None,
     bb_lower: Optional[float] = None,
-) -> dict[str, Any]:
-    """Identifica exaustão de movimento (sobrecompra/sobrevenda)."""
-    sobrecomprado = False
-    sobrevendido = False
-    
-    if rsi is not None:
-        if rsi > RSI_OVERBOUGHT:
-            sobrecomprado = True
-        elif rsi < RSI_OVERSOLD:
-            sobrevendido = True
-    
-    if bb_upper is not None and bb_lower is not None:
-        if price >= bb_upper:
-            sobrecomprado = True
-        elif price <= bb_lower:
-            sobrevendido = True
-    
-    return {
-        "sobrecomprado": sobrecomprado,
-        "sobrevendido": sobrevendido,
-        "rsi": rsi,
-    }
-
-
-def classificar_volatilidade(
     bb_width: Optional[float] = None,
-    threshold_low: float = BB_WIDTH_LOW_THRESHOLD,
-    threshold_high: float = BB_WIDTH_HIGH_THRESHOLD,
-) -> str:
-    """Classifica volatilidade com base na largura das bandas de Bollinger."""
-    if bb_width is None:
-        return "MODERATE"
-    if bb_width < threshold_low:
-        return "LOW"
-    elif bb_width > threshold_high:
-        return "HIGH"
-    return "MODERATE"
-
-
-def identificar_momentum(
-    macd: Optional[float] = None,
-    macd_signal: Optional[float] = None,
-) -> str:
-    """Identifica momentum pelo MACD."""
-    if macd is None or macd_signal is None:
-        return "NEUTRAL"
-    if macd > macd_signal:
-        return "BULLISH"
-    elif macd < macd_signal:
-        return "BEARISH"
-    return "NEUTRAL"
-
-
-def calcular_distancia_ema21(price: float, ema21: float) -> float:
-    """Calcula distância do preço em relação à EMA 21 (em %)."""
-    if ema21 <= 0:
-        return 0.0
-    return abs(price - ema21) / ema21
-
-
-def ativo_esticado(
-    price: float,
-    ema21: float,
-    threshold: float = EMA21_STRETCH_THRESHOLD,
-) -> bool:
-    """Verifica se o ativo está 'esticado' (>5% da EMA 21)."""
-    return calcular_distancia_ema21(price, ema21) > threshold
-
-
-# Mapas de tradução para exibição
-ESTRATEGIA_NOME = {
-    "BULL_SPREAD": "Trava de Alta",
-    "BEAR_SPREAD": "Trava de Baixa",
-    "SELL_PUT": "Venda de PUT",
-    "SELL_CALL": "Venda de CALL",
-    "THL": "Operação Lateral (THL)",
-    "NO_TRADE": "Não Operar",
-}
-
-TENDENCIA_NOME = {
-    "UP": "Alta",
-    "DOWN": "Baixa",
-    "SIDEWAYS": "Lateral",
-}
-
-FORCA_NOME = {
-    "STRONG": "Forte",
-    "MODERATE": "Moderada",
-    "WEAK": "Fraca",
-}
-
-VOLATILIDADE_NOME = {
-    "LOW": "Baixa",
-    "MODERATE": "Moderada",
-    "HIGH": "Alta",
-}
-
-MOMENTUM_NOME = {
-    "BULLISH": "Alta (Comprador)",
-    "BEARISH": "Baixa (Vendedor)",
-    "NEUTRAL": "Neutro",
-}
-
-
-def _traduzir_resultado(decisao: dict[str, Any]) -> dict[str, Any]:
-    """Traduz os valores internos para exibição em português."""
-    return {
-        "tendencia": TENDENCIA_NOME.get(decisao["tendencia"], decisao["tendencia"]),
-        "tendencia_forca": FORCA_NOME.get(decisao["tendencia_forca"], decisao["tendencia_forca"]),
-        "sobrecomprado": decisao["sobrecomprado"],
-        "sobrevendido": decisao["sobrevendido"],
-        "volatilidade": VOLATILIDADE_NOME.get(decisao["volatilidade"], decisao["volatilidade"]),
-        "momentum": MOMENTUM_NOME.get(decisao["momentum"], decisao["momentum"]),
-        "ativo_esticado": decisao["ativo_esticado"],
-        "estrategia_sugerida": ESTRATEGIA_NOME.get(decisao["estrategia_sugerida"], decisao["estrategia_sugerida"]),
-        "scores": decisao["scores"],
-        "justificativa": decisao["justificativa"],
-        "indicadores": decisao["indicadores"],
-    }
-
-
-# ============================================================================
-# Motor de Decisão
-# ============================================================================
-
-def decidir_estrategia(
-    indicadores: dict[str, Any],
 ) -> dict[str, Any]:
     """
-    Motor de decisão baseado nos indicadores técnicos.
+    Classifica o cenário do ativo conforme ANALISE.md.
     
-    Entrada esperada:
-        - price: Preço atual
-        - ema9, ema21, ema200: Médias móveis exponenciais
-        - rsi: RSI (14 períodos)
-        - adx: ADX
-        - macd, macd_signal: MACD e sua linha de sinal
-        - bb_upper, bb_lower, bb_width: Bandas de Bollinger
+    Retorna:
+        - cenario: "TOPO", "FUNDO", "LATERAL"
+        - adx_forte: bool (ADX > 35)
+        - adx_fraco: bool (ADX < 20)
+        - rsi_sobrecomprado: bool
+        - rsi_sobrevendido: bool
+        - bb_squeeze: bool (BB Width em mínimas)
+        - preco_esticado: bool (preço > 5% da EMA 21)
+        - justificativa: str
     """
-    price = indicadores.get("price", 0)
-    ema9 = indicadores.get("ema9", 0)
-    ema21 = indicadores.get("ema21", 0)
-    ema200 = indicadores.get("ema200", 0)
-    rsi = indicadores.get("rsi")
-    adx = indicadores.get("adx")
-    macd = indicadores.get("macd")
-    macd_signal = indicadores.get("macd_signal")
-    bb_upper = indicadores.get("bb_upper")
-    bb_lower = indicadores.get("bb_lower")
-    bb_width = indicadores.get("bb_width")
+    # Calcular distância da EMA 21
+    distancia_ema21 = abs(price - ema21) / ema21 if ema21 > 0 else 0
+    preco_esticado = distancia_ema21 > EMA21_STRETCH_THRESHOLD
     
-    tendencia = classificar_tendencia(price, ema9, ema21, ema200, adx)
-    exaustao = identificar_exaustao(price, rsi, bb_upper, bb_lower)
-    volatilidade = classificar_volatilidade(bb_width)
-    momentum = identificar_momentum(macd, macd_signal)
-    is_esticado = ativo_esticado(price, ema21) if ema21 > 0 else False
+    # RSI
+    rsi_sobrecomprado = rsi is not None and rsi > RSI_OVERBOUGHT
+    rsi_sobrevendido = rsi is not None and rsi < RSI_OVERSOLD
     
-    # Scores
-    trend_score = 0
-    if price > ema200:
-        trend_score += 33
-        if ema9 > ema21:
-            trend_score += 33
-        if adx is not None and adx >= ADX_STRONG:
-            trend_score += 34
-        elif adx is not None and adx >= ADX_WEAK:
-            trend_score += 17
-    elif price < ema200:
-        trend_score -= 33
-        if ema9 < ema21:
-            trend_score -= 33
-        if adx is not None and adx >= ADX_STRONG:
-            trend_score -= 34
-        elif adx is not None and adx >= ADX_WEAK:
-            trend_score -= 17
+    # ADX
+    adx_forte = adx is not None and adx > ADX_STRONG
+    adx_fraco = adx is not None and adx < ADX_WEAK
     
-    reversal_score = 0
-    if rsi is not None:
-        if rsi > RSI_OVERBOUGHT:
-            reversal_score = -50
-        elif rsi < RSI_OVERSOLD:
-            reversal_score = 50
-        elif rsi > 60:
-            reversal_score = -20
-        elif rsi < 40:
-            reversal_score = 20
-    if macd is not None and macd_signal is not None:
-        if macd > macd_signal and reversal_score < 0:
-            reversal_score += 30
-        elif macd < macd_signal and reversal_score > 0:
-            reversal_score -= 30
+    # Bollinger
+    bb_squeeze = bb_width is not None and bb_width < BB_WIDTH_MINIMAL
+    tocando_bb_superior = bb_upper is not None and price >= bb_upper
+    tocando_bb_inferior = bb_lower is not None and price <= bb_lower
     
-    volatility_score = 0
-    if bb_width is not None:
-        if bb_width < BB_WIDTH_LOW_THRESHOLD:
-            volatility_score = -50
-        elif bb_width > BB_WIDTH_HIGH_THRESHOLD:
-            volatility_score = 50
-    if adx is not None:
-        if adx >= ADX_STRONG:
-            volatility_score += 30
-        elif adx < ADX_WEAK:
-            volatility_score -= 30
-    
-    # Lógica de decisão
-    estrategia = "NO_TRADE"
+    # Classificação do cenário
+    cenario = "LATERAL"
     justificativa = ""
     
-    # 1. Lateral + baixa volatilidade → THL
-    if tendencia["direcao"] == "SIDEWAYS" and tendencia["forca"] == "WEAK" and volatilidade == "LOW":
-        estrategia = "THL"
-        justificativa = (
-            f"Mercado lateral (ADX: {adx:.1f}) com baixa volatilidade. "
-            f"Estratégia ideal: operações para mercado lateral (THL)."
-        )
-    # 2. Lateral com volatilidade não baixa → NÃO operar
-    elif tendencia["direcao"] == "SIDEWAYS" and volatilidade != "LOW":
-        estrategia = "NO_TRADE"
-        justificativa = (
-            f"Mercado lateral com volatilidade {volatilidade}. "
-            f"Recomenda-se não operar até o mercado se direcionar."
-        )
-    # 3. Exaustão em tendência de alta
-    elif tendencia["direcao"] == "UP" and exaustao["sobrevendido"] and momentum == "BULLISH":
-        estrategia = "SELL_PUT"
-        justificativa = (
-            f"Tendência de alta, ativo sobrevendido (RSI: {rsi}), "
-            f"momentum bullish. Venda de PUT recomendada."
-        )
-    # 4. Exaustão em tendência de baixa
-    elif tendencia["direcao"] == "DOWN" and exaustao["sobrecomprado"] and momentum == "BEARISH":
-        estrategia = "SELL_CALL"
-        justificativa = (
-            f"Tendência de baixa, ativo sobrecomprado (RSI: {rsi}), "
-            f"momentum bearish. Venda de CALL recomendada."
-        )
-    # 5. Tendência forte de alta
-    elif tendencia["direcao"] == "UP" and tendencia["forca"] == "STRONG" and not exaustao["sobrecomprado"]:
-        estrategia = "BULL_SPREAD"
-        justificativa = (
-            f"Tendência de alta forte (ADX: {adx}), ativo não sobrecomprado. "
-            f"Trava de Alta (Bull Spread) recomendada."
-        )
-    # 6. Tendência forte de baixa
-    elif tendencia["direcao"] == "DOWN" and tendencia["forca"] == "STRONG" and not exaustao["sobrevendido"]:
-        estrategia = "BEAR_SPREAD"
-        justificativa = (
-            f"Tendência de baixa forte (ADX: {adx}), ativo não sobrevendido. "
-            f"Trava de Baixa (Bear Spread) recomendada."
-        )
-    # 7. Ativo esticado
-    elif is_esticado:
-        distancia = calcular_distancia_ema21(price, ema21) * 100
-        if tendencia["direcao"] == "UP":
-            estrategia = "SELL_PUT"
+    # TOPO: Preço >= Banda Superior AND RSI > 70 AND Afastamento da EMA 21
+    if tocando_bb_superior and rsi_sobrecomprado and preco_esticado:
+        cenario = "TOPO"
+        if adx_forte:
             justificativa = (
-                f"Ativo esticado: preço {distancia:.1f}% acima da EMA21. "
-                f"Alta probabilidade de reversão. Venda de PUT sugerida."
-            )
-        elif tendencia["direcao"] == "DOWN":
-            estrategia = "SELL_CALL"
-            justificativa = (
-                f"Ativo esticado: preço {distancia:.1f}% abaixo da EMA21. "
-                f"Alta probabilidade de reversão. Venda de CALL sugerida."
+                f"Ativo esticado no TOPO. Preço tocou banda superior de Bollinger, "
+                f"RSI sobrecomprado ({rsi:.1f}), ADX forte ({adx:.1f}). "
+                f"Alerta: tendência de exaustão de alta."
             )
         else:
-            estrategia = "NO_TRADE"
-            justificativa = f"Ativo esticado ({distancia:.1f}%) em mercado lateral. Aguardar."
-    # 8. Fallback tendência moderata
-    elif tendencia["direcao"] == "UP":
-        estrategia = "BULL_SPREAD"
-        justificativa = "Tendência de alta moderada. Trava de Alta recomendada."
-    elif tendencia["direcao"] == "DOWN":
-        estrategia = "BEAR_SPREAD"
-        justificativa = "Tendência de baixa moderada. Trava de Baixa recomendada."
-    else:
-        estrategia = "NO_TRADE"
-        justificativa = "Sem configuração clara de tendência ou exaustão. Não operar."
+            justificativa = (
+                f"Ativo esticado no TOPO. Preço tocou banda superior de Bollinger, "
+                f"RSI sobrecomprado ({rsi:.1f}), distância da EMA21: {distancia_ema21*100:.1f}%. "
+                f"Expectativa de queda/correção."
+            )
     
-    # Filtro de segurança: evitar operar contra tendência forte
-    if estrategia in ("SELL_CALL", "BEAR_SPREAD") and tendencia["direcao"] == "UP" and tendencia["forca"] == "STRONG":
-        estrategia = "NO_TRADE"
-        justificativa = (
-            f"FILTRO DE SEGURANÇA: Tendência de alta forte detectada. "
-            f"Evitar operar contra a tendência."
-        )
-    elif estrategia in ("SELL_PUT", "BULL_SPREAD") and tendencia["direcao"] == "DOWN" and tendencia["forca"] == "STRONG":
-        estrategia = "NO_TRADE"
-        justificativa = (
-            f"FILTRO DE SEGURANÇA: Tendência de baixa forte detectada. "
-            f"Evitar operar contra a tendência."
-        )
+    # FUNDO: Preço <= Banda Inferior AND RSI < 30 AND Preço abaixo da EMA 21
+    elif tocando_bb_inferior and rsi_sobrevendido and price < ema21:
+        cenario = "FUNDO"
+        if adx_forte:
+            justificativa = (
+                f"Ativo em SUPORTE/FUNDO. Preço tocou banda inferior de Bollinger, "
+                f"RSI sobrevendido ({rsi:.1f}), ADX forte ({adx:.1f}). "
+                f"Alerta: tendência de queda acelerada."
+            )
+        else:
+            justificativa = (
+                f"Ativo em SUPORTE/FUNDO. Preço tocou banda inferior de Bollinger, "
+                f"RSI sobrevendido ({rsi:.1f}), abaixo da EMA21. "
+                f"Expectativa de repique/alta."
+            )
+    
+    # LATERAL: ADX < 20 AND Preço entre Bandas
+    elif adx_fraco and not tocando_bb_superior and not tocando_bb_inferior:
+        cenario = "LATERAL"
+        if bb_squeeze:
+            justificativa = (
+                f"Mercado LATERAL. ADX fraco ({adx:.1f}), BB Width em mínimas "
+                f"({bb_width*100:.2f}%). Atenção: risco de explosão (squeeze). "
+                f"Aguardar rompimento."
+            )
+        else:
+            justificativa = (
+                f"Mercado LATERAL. ADX fraco ({adx:.1f}), preço oscilando entre "
+                f"Bandas de Bollinger. Consolidação em andamento."
+            )
+    
+    # Fallback: verificar tendência
+    elif price > ema200 and ema9 > ema21:
+        cenario = "TOPO" if rsi_sobrecomprado else "LATERAL"
+        justificativa = f"Tendência de alta identificada. RSI: {rsi}, ADX: {adx}."
+    elif price < ema200 and ema9 < ema21:
+        cenario = "FUNDO" if rsi_sobrevendido else "LATERAL"
+        justificativa = f"Tendência de baixa identificada. RSI: {rsi}, ADX: {adx}."
+    else:
+        justificativa = "Sem configuração clara. Monitorar indicadores."
     
     return {
-        "tendencia": tendencia["direcao"],
-        "tendencia_forca": tendencia["forca"],
-        "sobrecomprado": exaustao["sobrecomprado"],
-        "sobrevendido": exaustao["sobrevendido"],
-        "volatilidade": volatilidade,
-        "momentum": momentum,
-        "ativo_esticado": is_esticado,
-        "estrategia_sugerida": estrategia,
-        "scores": {
-            "trend_score": round(trend_score, 1),
-            "reversal_score": round(reversal_score, 1),
-            "volatility_score": round(volatility_score, 1),
-        },
+        "cenario": cenario,
+        "adx_forte": adx_forte,
+        "adx_fraco": adx_fraco,
+        "rsi_sobrecomprado": rsi_sobrecomprado,
+        "rsi_sobrevendido": rsi_sobrevendido,
+        "bb_squeeze": bb_squeeze,
+        "preco_esticado": preco_esticado,
+        "distancia_ema21_pct": round(distancia_ema21 * 100, 1),
         "justificativa": justificativa,
-        "indicadores": {
-            "price": price,
-            "ema9": ema9,
-            "ema21": ema21,
-            "ema200": ema200,
-            "rsi": rsi,
-            "adx": adx,
-            "macd": macd,
-            "macd_signal": macd_signal,
-            "bb_upper": bb_upper,
-            "bb_lower": bb_lower,
-            "bb_width": bb_width,
-        },
+    }
+
+
+def classificar_iv(iv_rank: Optional[float] = None, vi: Optional[float] = None) -> str:
+    """Classifica nível da volatilidade implícita."""
+    if iv_rank is not None:
+        if iv_rank > IV_RANK_HIGH:
+            return "ALTA"
+        elif iv_rank < IV_RANK_LOW:
+            return "BAIXA"
+    # Fallback: usar VI absoluta
+    if vi is not None:
+        if vi > 40:
+            return "ALTA"
+        elif vi < 25:
+            return "BAIXA"
+    return "BAIXA"  # Default conservador
+
+
+def decidir_estrategia(
+    cenario: str,
+    iv_nivel: str,
+    adx_forte: bool = False,
+    bb_squeeze: bool = False,
+) -> dict[str, Any]:
+    """
+    Decide estratégia conforme matriz do ANALISE.md.
+    
+    Regras:
+    - TOPO + IV ALTA → Bear Call Spread
+    - TOPO + IV BAIXA → Compra de PUT
+    - FUNDO + IV ALTA → Venda de PUT
+    - FUNDO + IV BAIXA → Compra de CALL
+    - LATERAL + IV ALTA → Iron Condor
+    - LATERAL + IV BAIXA → Calendário
+    
+    Filtros de segurança:
+    - Anti-Squeeze: não vender vol se BB Width em mínimas
+    - ADX > 35: priorizar estruturas de DÉBITO
+    """
+    estrategia = "NENHUMA"
+    justificativa = ""
+    
+    # Filtro Anti-Squeeze
+    if bb_squeeze and iv_nivel == "ALTA":
+        return {
+            "estrategia": "NENHUMA",
+            "justificativa": (
+                "FILTRO ANTI-SQUEEZE: BB Width em níveis mínimos. "
+                "Risco de explosão de volatilidade. Não operar venda de volatilidade."
+            ),
+        }
+    
+    # TOPO
+    if cenario == "TOPO":
+        if iv_nivel == "ALTA":
+            # Bear Call Spread - vende prêmios caros
+            estrategia = "BEAR_CALL_SPREAD"
+            justificativa = (
+                "Topo + IV Alta: Bear Call Spread (Trava de Baixa com CALL). "
+                "Vende-se prêmios caros; lucra com queda do ativo e IV Crush."
+            )
+        else:
+            # Compra de PUT - opções baratas
+            if adx_forte:
+                estrategia = "PUT_SPREAD"
+                justificativa = (
+                    "Topo + IV Baixa + ADX Forte: Put Spread (Trava de Baixa). "
+                    "Estrutura de débito priorizada; ADX forte indica tendência que pode continuar."
+                )
+            else:
+                estrategia = "COMPRA_PUT"
+                justificativa = (
+                    "Topo + IV Baixa: Compra de PUT. "
+                    "Opções baratas (Vega Positivo); lucra com queda e aumento do medo (IV)."
+                )
+    
+    # FUNDO
+    elif cenario == "FUNDO":
+        if iv_nivel == "ALTA":
+            # Venda de PUT - recebe prêmio elevado
+            if adx_forte:
+                estrategia = "CREDIT_PUT_SPREAD"
+                justificativa = (
+                    "Fundo + IV Alta + ADX Forte: Credit Put Spread (Trava de Alta com PUT). "
+                    "Proteção com compra de put mais abaixo; ADX forte indica risco de continuidade da queda."
+                )
+            else:
+                estrategia = "VENDA_PUT"
+                justificativa = (
+                    "Fundo + IV Alta: Venda de PUT (Cash Secured Put). "
+                    "Recebe prêmio elevado; alta margem de segurança e ganho na retração da IV."
+                )
+        else:
+            # Compra de CALL - baixo custo
+            estrategia = "COMPRA_CALL"
+            justificativa = (
+                "Fundo + IV Baixa: Compra de CALL. "
+                "Baixo custo de entrada e risco limitado para capturar retomada."
+            )
+    
+    # LATERAL
+    elif cenario == "LATERAL":
+        if iv_nivel == "ALTA":
+            estrategia = "IRON_CONDOR"
+            justificativa = (
+                "Lateral + IV Alta: Iron Condor. "
+                "Venda de volatilidade em ambos os lados; lucro máximo com passagem do tempo (Theta)."
+            )
+        else:
+            estrategia = "CALENDARIO"
+            justificativa = (
+                "Lateral + IV Baixa: Trava de Calendário. "
+                "Beneficia-se da baixa IV esperando expansão futura; ganho no diferencial de Theta."
+            )
+    
+    return {
+        "estrategia": estrategia,
+        "justificativa": justificativa,
     }
 
 
@@ -437,11 +317,6 @@ def _liquidez_score(texto: str) -> int:
         return 0
     texto_lower = texto.lower()
     
-    # Match exato primeiro
-    if texto_lower in SCORE_LIQUIDEZ:
-        return SCORE_LIQUIDEZ[texto_lower]
-    
-    # Match parcial por palavras-chave
     if "alta" in texto_lower and "baixa" not in texto_lower and "nenhuma" not in texto_lower:
         return 100
     if "muitobo" in texto_lower or "muito boa" in texto_lower:
@@ -460,35 +335,36 @@ def _liquidez_score(texto: str) -> int:
     return 0
 
 
-def _bid_ask_spread_pct(bid: float, ask: float) -> float:
-    if ask <= 0:
-        return 999.0
-    return ((ask - bid) / ask) * 100
-
-
 def _meio_preco(bid: float, ask: float) -> float:
     return (bid + ask) / 2.0
 
 
+def _preco_opcao(opt: dict) -> float:
+    """Obtém preço da opção: último negócio > bid > ask > 0."""
+    ultimo = opt.get("ultimo_preco", 0) or 0
+    if ultimo > 0:
+        return ultimo
+    bid = opt.get("bid", 0) or 0
+    ask = opt.get("ask", 0) or 0
+    if bid > 0 and ask > 0:
+        return _meio_preco(bid, ask)
+    return 0
+
+
 def _filtro_opcoes(options: list[dict]) -> list[dict]:
-    """Filtra opções com critérios flexíveis. Aceita opções com strike válido e VI > 0."""
+    """Filtra opções com strike válido e VI > 0."""
     filtradas = []
     for opt in options:
-        # Verificar strike primeiro (mais importante)
         strike = opt.get("strike", 0) or 0
         if strike <= 0:
             continue
-        
-        # Aceitar se tem VI válido (indicador de que a opção existe e tem dados)
         vi = opt.get("vi", 0) or 0
         if vi <= 0:
-            # Sem VI, verificar se tem pelo menos um preço de mercado
+            ultimo = opt.get("ultimo_preco", 0) or 0
             bid = opt.get("bid", 0) or 0
             ask = opt.get("ask", 0) or 0
-            ultimo = opt.get("ultimo_preco", 0) or 0
-            if bid <= 0 and ask <= 0 and ultimo <= 0:
+            if ultimo <= 0 and bid <= 0 and ask <= 0:
                 continue
-        
         filtradas.append(opt)
     return filtradas
 
@@ -507,117 +383,32 @@ def _agrupar_por_serie(options: list[dict]) -> dict[str, list[dict]]:
 # Estratégias - Cálculo de métricas
 # ============================================================================
 
-def _calcular_trava_alta_put(put_venda: dict, put_compra: dict, preco_base: float) -> dict[str, Any]:
-    """Trava de Alta com PUT (Bull Put Spread)."""
-    premio_venda = put_venda.get("ultimo_preco", 0) or 0
-    if premio_venda <= 0:
-        premio_venda = _meio_preco(put_venda.get("bid", 0) or 0, put_venda.get("ask", 0) or 0)
-    premio_compra = put_compra.get("ultimo_preco", 0) or 0
-    if premio_compra <= 0:
-        premio_compra = _meio_preco(put_compra.get("bid", 0) or 0, put_compra.get("ask", 0) or 0)
-    k1 = put_venda.get("strike", 0)
-    k2 = put_compra.get("strike", 0)
+def _calcular_bear_call_spread(call_venda: dict, call_compra: dict, preco_base: float) -> dict[str, Any]:
+    """Bear Call Spread (Trava de Baixa com CALL)."""
+    premio_venda = _preco_opcao(call_venda)
+    premio_compra = _preco_opcao(call_compra)
+    k_venda = call_venda.get("strike", 0)
+    k_compra = call_compra.get("strike", 0)
+    
     credito = premio_venda - premio_compra
     lucro_max = credito
-    perda_max = (k1 - k2) - credito if credito > 0 else (k1 - k2) + abs(credito)
-    break_even = k1 - credito
+    perda_max = (k_compra - k_venda) - credito
+    break_even = k_venda + credito
     retorno = (lucro_max / perda_max * 100) if perda_max > 0 else 0
     
+    # Score: crédito positivo, delta na faixa, liquidez
     score = 0
-    if retorno > 100: score += 30
-    elif retorno > 50: score += 20
-    elif retorno > 25: score += 10
-    if credito > 0: score += 25
-    if preco_base > k1: score += 20
-    score += _liquidez_score(put_venda.get("liquidez_texto", "")) / 5
-    score += _liquidez_score(put_compra.get("liquidez_texto", "")) / 5
-    
-    return {
-        "tipo": "Trava de Alta com PUT (Bull Put Spread)",
-        "perna_venda": {"simbolo": put_venda.get("simbolo", ""), "strike": k1, "premio": round(premio_venda, 2), "delta": put_venda.get("delta"), "vi": put_venda.get("vi"), "moneyness": put_venda.get("moneyness", "")},
-        "perna_compra": {"simbolo": put_compra.get("simbolo", ""), "strike": k2, "premio": round(premio_compra, 2), "delta": put_compra.get("delta"), "vi": put_compra.get("vi"), "moneyness": put_compra.get("moneyness", "")},
-        "serie": put_venda.get("serie", ""),
-        "dias_vencimento": put_venda.get("dias_vencimento", 0),
-        "credito": round(credito, 2),
-        "lucro_max": round(lucro_max, 2),
-        "perda_max": round(perda_max, 2),
-        "break_even": round(break_even, 2),
-        "retorno_pct": round(retorno, 1),
-        "score": round(score, 1),
-    }
-
-
-def _calcular_trava_baixa_put(put_compra: dict, put_venda: dict, preco_base: float) -> dict[str, Any]:
-    """Trava de Baixa com PUT (Bear Put Spread)."""
-    premio_compra = put_compra.get("ultimo_preco", 0) or 0
-    if premio_compra <= 0:
-        premio_compra = _meio_preco(put_compra.get("bid", 0) or 0, put_compra.get("ask", 0) or 0)
-    premio_venda = put_venda.get("ultimo_preco", 0) or 0
-    if premio_venda <= 0:
-        premio_venda = _meio_preco(put_venda.get("bid", 0) or 0, put_venda.get("ask", 0) or 0)
-    k1 = put_compra.get("strike", 0)
-    k2 = put_venda.get("strike", 0)
-    debito = premio_compra - premio_venda
-    lucro_max = (k1 - k2) - debito
-    perda_max = debito
-    break_even = k1 - debito
-    retorno = (lucro_max / perda_max * 100) if perda_max > 0 else 0
-    
-    score = 0
-    if retorno > 200: score += 30
-    elif retorno > 100: score += 20
-    elif retorno > 50: score += 10
-    if preco_base > k1: score += 20
-    score += _liquidez_score(put_compra.get("liquidez_texto", "")) / 5
-    score += _liquidez_score(put_venda.get("liquidez_texto", "")) / 5
-    spread_c = _bid_ask_spread_pct(put_compra.get("bid", 0), put_compra.get("ask", 0))
-    spread_v = _bid_ask_spread_pct(put_venda.get("bid", 0), put_venda.get("ask", 0))
-    if spread_c < 10 and spread_v < 10:
-        score += 10
-    
-    return {
-        "tipo": "Trava de Baixa com PUT (Bear Put Spread)",
-        "perna_compra": {"simbolo": put_compra.get("simbolo", ""), "strike": k1, "premio": round(premio_compra, 2), "delta": put_compra.get("delta"), "vi": put_compra.get("vi"), "moneyness": put_compra.get("moneyness", "")},
-        "perna_venda": {"simbolo": put_venda.get("simbolo", ""), "strike": k2, "premio": round(premio_venda, 2), "delta": put_venda.get("delta"), "vi": put_venda.get("vi"), "moneyness": put_venda.get("moneyness", "")},
-        "serie": put_compra.get("serie", ""),
-        "dias_vencimento": put_compra.get("dias_vencimento", 0),
-        "debito": round(debito, 2),
-        "lucro_max": round(lucro_max, 2),
-        "perda_max": round(perda_max, 2),
-        "break_even": round(break_even, 2),
-        "retorno_pct": round(retorno, 1),
-        "score": round(score, 1),
-    }
-
-
-def _calcular_trava_baixa_call(call_venda: dict, call_compra: dict, preco_base: float) -> dict[str, Any]:
-    """Trava de Baixa com CALL (Bear Call Spread)."""
-    premio_venda = call_venda.get("ultimo_preco", 0) or 0
-    if premio_venda <= 0:
-        premio_venda = _meio_preco(call_venda.get("bid", 0) or 0, call_venda.get("ask", 0) or 0)
-    premio_compra = call_compra.get("ultimo_preco", 0) or 0
-    if premio_compra <= 0:
-        premio_compra = _meio_preco(call_compra.get("bid", 0) or 0, call_compra.get("ask", 0) or 0)
-    k1 = call_venda.get("strike", 0)
-    k2 = call_compra.get("strike", 0)
-    credito = premio_venda - premio_compra
-    lucro_max = credito
-    perda_max = (k2 - k1) - credito
-    break_even = k1 + credito
-    retorno = (lucro_max / perda_max * 100) if perda_max > 0 else 0
-    
-    score = 0
-    if retorno > 100: score += 30
-    elif retorno > 50: score += 20
-    elif retorno > 25: score += 10
-    if credito > 0: score += 25
+    if credito > 0: score += 30
+    delta_venda = abs(call_venda.get("delta", 0) or 0)
+    if DELTA_MIN_CREDITO <= delta_venda <= DELTA_MAX_CREDITO:
+        score += 25
     score += _liquidez_score(call_venda.get("liquidez_texto", "")) / 5
     score += _liquidez_score(call_compra.get("liquidez_texto", "")) / 5
     
     return {
-        "tipo": "Trava de Baixa com CALL (Bear Call Spread)",
-        "perna_venda": {"simbolo": call_venda.get("simbolo", ""), "strike": k1, "premio": round(premio_venda, 2), "delta": call_venda.get("delta"), "vi": call_venda.get("vi"), "moneyness": call_venda.get("moneyness", "")},
-        "perna_compra": {"simbolo": call_compra.get("simbolo", ""), "strike": k2, "premio": round(premio_compra, 2), "delta": call_compra.get("delta"), "vi": call_compra.get("vi"), "moneyness": call_compra.get("moneyness", "")},
+        "tipo": ESTRATEGIA_NOME["BEAR_CALL_SPREAD"],
+        "perna_venda": {"simbolo": call_venda.get("simbolo", ""), "strike": k_venda, "premio": round(premio_venda, 2), "delta": call_venda.get("delta"), "vi": call_venda.get("vi"), "moneyness": call_venda.get("moneyness", "")},
+        "perna_compra": {"simbolo": call_compra.get("simbolo", ""), "strike": k_compra, "premio": round(premio_compra, 2), "delta": call_compra.get("delta"), "vi": call_compra.get("vi"), "moneyness": call_compra.get("moneyness", "")},
         "serie": call_venda.get("serie", ""),
         "dias_vencimento": call_venda.get("dias_vencimento", 0),
         "credito": round(credito, 2),
@@ -629,28 +420,23 @@ def _calcular_trava_baixa_call(call_venda: dict, call_compra: dict, preco_base: 
     }
 
 
-def _calcular_venda_put(put: dict, preco_base: float) -> dict[str, Any]:
-    """Venda de PUT (Cash Secured Put ou parte de THL)."""
-    premio = put.get("ultimo_preco", 0) or 0
-    if premio <= 0:
-        premio = _meio_preco(put.get("bid", 0) or 0, put.get("ask", 0) or 0)
+def _calcular_compra_put(put: dict, preco_base: float) -> dict[str, Any]:
+    """Compra de PUT."""
+    premio = _preco_opcao(put)
     strike = put.get("strike", 0)
     delta = put.get("delta", 0) or 0
-    poe = put.get("poe", 0) or 0
     vi = put.get("vi", 0) or 0
+    poe = put.get("poe", 0) or 0
     
     score = 0
-    if poe < 30: score += 30
-    elif poe < 40: score += 20
-    if vi > 40: score += 25
-    elif vi > 30: score += 15
+    if vi < 30: score += 30  # IV baixa = bom para compra
+    if poe < 30: score += 20  # Probabilidade ITM baixa
     score += _liquidez_score(put.get("liquidez_texto", "")) / 5
-    if strike < preco_base: score += 15
     
     dist_otm = ((preco_base - strike) / preco_base * 100) if preco_base > 0 else 0
     
     return {
-        "tipo": "Venda de PUT (Cash Secured Put)",
+        "tipo": ESTRATEGIA_NOME["COMPRA_PUT"],
         "simbolo": put.get("simbolo", ""),
         "strike": strike,
         "premio": round(premio, 2),
@@ -665,28 +451,127 @@ def _calcular_venda_put(put: dict, preco_base: float) -> dict[str, Any]:
     }
 
 
-def _calcular_venda_call(call: dict, preco_base: float) -> dict[str, Any]:
-    """Venda de CALL (Covered Call ou parte de THL)."""
-    premio = call.get("ultimo_preco", 0) or 0
-    if premio <= 0:
-        premio = _meio_preco(call.get("bid", 0) or 0, call.get("ask", 0) or 0)
-    strike = call.get("strike", 0)
-    delta = call.get("delta", 0) or 0
-    poe = call.get("poe", 0) or 0
-    vi = call.get("vi", 0) or 0
+def _calcular_put_spread(put_compra: dict, put_venda: dict, preco_base: float) -> dict[str, Any]:
+    """Put Spread (Trava de Baixa com PUT)."""
+    premio_compra = _preco_opcao(put_compra)
+    premio_venda = _preco_opcao(put_venda)
+    k_compra = put_compra.get("strike", 0)
+    k_venda = put_venda.get("strike", 0)
+    
+    debito = premio_compra - premio_venda
+    lucro_max = (k_compra - k_venda) - debito
+    perda_max = debito
+    break_even = k_compra - debito
+    retorno = (lucro_max / perda_max * 100) if perda_max > 0 else 0
     
     score = 0
-    if poe < 30: score += 30
-    elif poe < 40: score += 20
-    if vi > 40: score += 25
-    elif vi > 30: score += 15
+    if retorno > 100: score += 30
+    elif retorno > 50: score += 20
+    score += _liquidez_score(put_compra.get("liquidez_texto", "")) / 5
+    score += _liquidez_score(put_venda.get("liquidez_texto", "")) / 5
+    
+    return {
+        "tipo": ESTRATEGIA_NOME["PUT_SPREAD"],
+        "perna_compra": {"simbolo": put_compra.get("simbolo", ""), "strike": k_compra, "premio": round(premio_compra, 2), "delta": put_compra.get("delta"), "vi": put_compra.get("vi"), "moneyness": put_compra.get("moneyness", "")},
+        "perna_venda": {"simbolo": put_venda.get("simbolo", ""), "strike": k_venda, "premio": round(premio_venda, 2), "delta": put_venda.get("delta"), "vi": put_venda.get("vi"), "moneyness": put_venda.get("moneyness", "")},
+        "serie": put_compra.get("serie", ""),
+        "dias_vencimento": put_compra.get("dias_vencimento", 0),
+        "debito": round(debito, 2),
+        "lucro_max": round(lucro_max, 2),
+        "perda_max": round(perda_max, 2),
+        "break_even": round(break_even, 2),
+        "retorno_pct": round(retorno, 1),
+        "score": round(score, 1),
+    }
+
+
+def _calcular_venda_put(put: dict, preco_base: float) -> dict[str, Any]:
+    """Venda de PUT (Cash Secured Put)."""
+    premio = _preco_opcao(put)
+    strike = put.get("strike", 0)
+    delta = put.get("delta", 0) or 0
+    vi = put.get("vi", 0) or 0
+    poe = put.get("poe", 0) or 0
+    
+    score = 0
+    if vi > 40: score += 30  # IV alta = bom para venda
+    delta_abs = abs(delta)
+    if DELTA_MIN_CREDITO <= delta_abs <= DELTA_MAX_CREDITO:
+        score += 25
+    if poe < 30: score += 20
+    score += _liquidez_score(put.get("liquidez_texto", "")) / 5
+    
+    dist_otm = ((preco_base - strike) / preco_base * 100) if preco_base > 0 else 0
+    
+    return {
+        "tipo": ESTRATEGIA_NOME["VENDA_PUT"],
+        "simbolo": put.get("simbolo", ""),
+        "strike": strike,
+        "premio": round(premio, 2),
+        "delta": delta,
+        "vi": vi,
+        "moneyness": put.get("moneyness", ""),
+        "poe": poe,
+        "serie": put.get("serie", ""),
+        "dias_vencimento": put.get("dias_vencimento", 0),
+        "distancia_otm_pct": round(dist_otm, 1),
+        "score": round(score, 1),
+    }
+
+
+def _calcular_credit_put_spread(put_venda: dict, put_compra: dict, preco_base: float) -> dict[str, Any]:
+    """Credit Put Spread (Trava de Alta com PUT)."""
+    premio_venda = _preco_opcao(put_venda)
+    premio_compra = _preco_opcao(put_compra)
+    k_venda = put_venda.get("strike", 0)
+    k_compra = put_compra.get("strike", 0)
+    
+    credito = premio_venda - premio_compra
+    lucro_max = credito
+    perda_max = (k_venda - k_compra) - credito
+    break_even = k_venda - credito
+    retorno = (lucro_max / perda_max * 100) if perda_max > 0 else 0
+    
+    score = 0
+    if credito > 0: score += 30
+    delta_venda = abs(put_venda.get("delta", 0) or 0)
+    if DELTA_MIN_CREDITO <= delta_venda <= DELTA_MAX_CREDITO:
+        score += 25
+    score += _liquidez_score(put_venda.get("liquidez_texto", "")) / 5
+    score += _liquidez_score(put_compra.get("liquidez_texto", "")) / 5
+    
+    return {
+        "tipo": ESTRATEGIA_NOME["CREDIT_PUT_SPREAD"],
+        "perna_venda": {"simbolo": put_venda.get("simbolo", ""), "strike": k_venda, "premio": round(premio_venda, 2), "delta": put_venda.get("delta"), "vi": put_venda.get("vi"), "moneyness": put_venda.get("moneyness", "")},
+        "perna_compra": {"simbolo": put_compra.get("simbolo", ""), "strike": k_compra, "premio": round(premio_compra, 2), "delta": put_compra.get("delta"), "vi": put_compra.get("vi"), "moneyness": put_compra.get("moneyness", "")},
+        "serie": put_venda.get("serie", ""),
+        "dias_vencimento": put_venda.get("dias_vencimento", 0),
+        "credito": round(credito, 2),
+        "lucro_max": round(lucro_max, 2),
+        "perda_max": round(perda_max, 2),
+        "break_even": round(break_even, 2),
+        "retorno_pct": round(retorno, 1),
+        "score": round(score, 1),
+    }
+
+
+def _calcular_compra_call(call: dict, preco_base: float) -> dict[str, Any]:
+    """Compra de CALL."""
+    premio = _preco_opcao(call)
+    strike = call.get("strike", 0)
+    delta = call.get("delta", 0) or 0
+    vi = call.get("vi", 0) or 0
+    poe = call.get("poe", 0) or 0
+    
+    score = 0
+    if vi < 30: score += 30  # IV baixa = bom para compra
+    if poe < 30: score += 20
     score += _liquidez_score(call.get("liquidez_texto", "")) / 5
-    if strike > preco_base: score += 15
     
     dist_otm = ((strike - preco_base) / preco_base * 100) if preco_base > 0 else 0
     
     return {
-        "tipo": "Venda de CALL (Covered Call)",
+        "tipo": ESTRATEGIA_NOME["COMPRA_CALL"],
         "simbolo": call.get("simbolo", ""),
         "strike": strike,
         "premio": round(premio, 2),
@@ -701,68 +586,181 @@ def _calcular_venda_call(call: dict, preco_base: float) -> dict[str, Any]:
     }
 
 
+def _calcular_iron_condor(
+    put_venda: dict, put_compra: dict,
+    call_venda: dict, call_compra: dict,
+    preco_base: float
+) -> dict[str, Any]:
+    """Iron Condor."""
+    pv_put = _preco_opcao(put_venda)
+    pc_put = _preco_opcao(put_compra)
+    pv_call = _preco_opcao(call_venda)
+    pc_call = _preco_opcao(call_compra)
+    
+    credito = (pv_put + pv_call) - (pc_put + pc_call)
+    k_put_venda = put_venda.get("strike", 0)
+    k_put_compra = put_compra.get("strike", 0)
+    k_call_venda = call_venda.get("strike", 0)
+    k_call_compra = call_compra.get("strike", 0)
+    
+    risco_put = k_put_venda - k_put_compra
+    risco_call = k_call_compra - k_call_venda
+    perda_max = max(risco_put, risco_call) - credito
+    lucro_max = credito
+    retorno = (lucro_max / perda_max * 100) if perda_max > 0 else 0
+    
+    score = 0
+    if credito > 0: score += 30
+    score += _liquidez_score(put_venda.get("liquidez_texto", "")) / 5
+    score += _liquidez_score(call_venda.get("liquidez_texto", "")) / 5
+    
+    return {
+        "tipo": ESTRATEGIA_NOME["IRON_CONDOR"],
+        "put_venda": {"simbolo": put_venda.get("simbolo", ""), "strike": k_put_venda, "premio": round(pv_put, 2)},
+        "put_compra": {"simbolo": put_compra.get("simbolo", ""), "strike": k_put_compra, "premio": round(pc_put, 2)},
+        "call_venda": {"simbolo": call_venda.get("simbolo", ""), "strike": k_call_venda, "premio": round(pv_call, 2)},
+        "call_compra": {"simbolo": call_compra.get("simbolo", ""), "strike": k_call_compra, "premio": round(pc_call, 2)},
+        "serie": put_venda.get("serie", ""),
+        "dias_vencimento": put_venda.get("dias_vencimento", 0),
+        "credito": round(credito, 2),
+        "lucro_max": round(lucro_max, 2),
+        "perda_max": round(perda_max, 2),
+        "retorno_pct": round(retorno, 1),
+        "score": round(score, 1),
+    }
+
+
 # ============================================================================
 # Busca de melhores combinações
 # ============================================================================
 
-def _buscar_melhor_bull_spread(series: dict[str, dict], preco_base: float, max_sugestoes: int = 3) -> list[dict]:
+def _buscar_bear_call_spread(series: dict[str, dict], preco_base: float, max_sugestoes: int = 3) -> list[dict]:
     sugestoes = []
     for serie_nome, dados in series.items():
-        puts = dados["puts"]
-        for i, put_venda in enumerate(puts):
-            k_venda = put_venda.get("strike", 0)
-            if k_venda < preco_base * 0.80 or k_venda > preco_base * 0.98:
+        calls = dados["calls"]
+        for i, call_venda in enumerate(calls):
+            k_venda = call_venda.get("strike", 0)
+            if k_venda < preco_base * 1.00 or k_venda > preco_base * 1.08:
                 continue
-            for put_compra in puts[:i]:
-                k_compra = put_compra.get("strike", 0)
-                if k_compra < k_venda * 0.85 or k_compra >= k_venda:
+            for call_compra in calls[i+1:]:
+                k_compra = call_compra.get("strike", 0)
+                if k_compra <= k_venda or k_compra > k_venda * 1.10:
                     continue
-                if (k_venda - k_compra) / k_venda > 0.20:
-                    continue
-                sugestoes.append(_calcular_trava_alta_put(put_venda, put_compra, preco_base))
+                sugestoes.append(_calcular_bear_call_spread(call_venda, call_compra, preco_base))
     sugestoes.sort(key=lambda x: x["score"], reverse=True)
     return sugestoes[:max_sugestoes]
 
 
-def _buscar_melhor_bear_spread(series: dict[str, dict], preco_base: float, max_sugestoes: int = 3) -> list[dict]:
+def _buscar_compra_put(series: dict[str, dict], preco_base: float, max_sugestoes: int = 3) -> list[dict]:
+    sugestoes = []
+    for serie_nome, dados in series.items():
+        for put in dados["puts"]:
+            strike = put.get("strike", 0)
+            if strike < preco_base * 0.90 or strike > preco_base * 1.00:
+                continue
+            sugestoes.append(_calcular_compra_put(put, preco_base))
+    sugestoes.sort(key=lambda x: x["score"], reverse=True)
+    return sugestoes[:max_sugestoes]
+
+
+def _buscar_put_spread(series: dict[str, dict], preco_base: float, max_sugestoes: int = 3) -> list[dict]:
     sugestoes = []
     for serie_nome, dados in series.items():
         puts = dados["puts"]
         for i, put_compra in enumerate(puts):
             k_compra = put_compra.get("strike", 0)
-            if k_compra < preco_base * 0.90 or k_compra > preco_base * 1.05:
+            if k_compra < preco_base * 0.95 or k_compra > preco_base * 1.05:
                 continue
             for put_venda in puts[:i]:
                 k_venda = put_venda.get("strike", 0)
-                if k_venda < k_compra * 0.85 or k_venda >= k_compra:
+                if k_venda < k_compra * 0.90 or k_venda >= k_compra:
                     continue
-                if (k_compra - k_venda) / k_compra > 0.20:
-                    continue
-                sugestoes.append(_calcular_trava_baixa_put(put_compra, put_venda, preco_base))
+                sugestoes.append(_calcular_put_spread(put_compra, put_venda, preco_base))
     sugestoes.sort(key=lambda x: x["score"], reverse=True)
     return sugestoes[:max_sugestoes]
 
 
-def _buscar_melhor_venda_put(series: dict[str, dict], preco_base: float, max_sugestoes: int = 3) -> list[dict]:
+def _buscar_venda_put(series: dict[str, dict], preco_base: float, max_sugestoes: int = 3) -> list[dict]:
     sugestoes = []
     for serie_nome, dados in series.items():
         for put in dados["puts"]:
             strike = put.get("strike", 0)
-            if strike < preco_base * 0.85 or strike > preco_base * 1.0:
+            if strike < preco_base * 0.85 or strike > preco_base * 0.98:
                 continue
             sugestoes.append(_calcular_venda_put(put, preco_base))
     sugestoes.sort(key=lambda x: x["score"], reverse=True)
     return sugestoes[:max_sugestoes]
 
 
-def _buscar_melhor_venda_call(series: dict[str, dict], preco_base: float, max_sugestoes: int = 3) -> list[dict]:
+def _buscar_credit_put_spread(series: dict[str, dict], preco_base: float, max_sugestoes: int = 3) -> list[dict]:
+    sugestoes = []
+    for serie_nome, dados in series.items():
+        puts = dados["puts"]
+        for i, put_venda in enumerate(puts):
+            k_venda = put_venda.get("strike", 0)
+            if k_venda < preco_base * 0.85 or k_venda > preco_base * 0.98:
+                continue
+            for put_compra in puts[:i]:
+                k_compra = put_compra.get("strike", 0)
+                if k_compra < k_venda * 0.85 or k_compra >= k_venda:
+                    continue
+                sugestoes.append(_calcular_credit_put_spread(put_venda, put_compra, preco_base))
+    sugestoes.sort(key=lambda x: x["score"], reverse=True)
+    return sugestoes[:max_sugestoes]
+
+
+def _buscar_compra_call(series: dict[str, dict], preco_base: float, max_sugestoes: int = 3) -> list[dict]:
     sugestoes = []
     for serie_nome, dados in series.items():
         for call in dados["calls"]:
             strike = call.get("strike", 0)
             if strike < preco_base * 1.02 or strike > preco_base * 1.15:
                 continue
-            sugestoes.append(_calcular_venda_call(call, preco_base))
+            sugestoes.append(_calcular_compra_call(call, preco_base))
+    sugestoes.sort(key=lambda x: x["score"], reverse=True)
+    return sugestoes[:max_sugestoes]
+
+
+def _buscar_iron_condor(series: dict[str, dict], preco_base: float, max_sugestoes: int = 3) -> list[dict]:
+    sugestoes = []
+    for serie_nome, dados in series.items():
+        puts = dados["puts"]
+        calls = dados["calls"]
+        
+        # Encontrar put venda OTM
+        for put_venda in puts:
+            k_put_v = put_venda.get("strike", 0)
+            if k_put_v < preco_base * 0.90 or k_put_v > preco_base * 0.97:
+                continue
+            # Put compra mais abaixo
+            for put_compra in puts:
+                k_put_c = put_compra.get("strike", 0)
+                if k_put_c >= k_put_v or k_put_c < k_put_v * 0.90:
+                    continue
+                
+                # Call venda OTM
+                for call_venda in calls:
+                    k_call_v = call_venda.get("strike", 0)
+                    if k_call_v < preco_base * 1.03 or k_call_v > preco_base * 1.10:
+                        continue
+                    # Call compra mais acima
+                    for call_compra in calls:
+                        k_call_c = call_compra.get("strike", 0)
+                        if k_call_c <= k_call_v or k_call_c > k_call_v * 1.10:
+                            continue
+                        
+                        sugestoes.append(_calcular_iron_condor(
+                            put_venda, put_compra, call_venda, call_compra, preco_base
+                        ))
+                        if len(sugestoes) >= max_sugestoes * 3:
+                            break
+                    if len(sugestoes) >= max_sugestoes * 3:
+                        break
+                if len(sugestoes) >= max_sugestoes * 3:
+                    break
+            if len(sugestoes) >= max_sugestoes * 3:
+                break
+    
     sugestoes.sort(key=lambda x: x["score"], reverse=True)
     return sugestoes[:max_sugestoes]
 
@@ -773,11 +771,13 @@ def _buscar_melhor_venda_call(series: dict[str, dict], preco_base: float, max_su
 
 ESTRATEGIAS_DISPONIVEIS = [
     ("auto", "Análise Automática (por indicadores)"),
-    ("trava_alta_put", "Trava de Alta com PUT"),
-    ("trava_baixa_put", "Trava de Baixa com PUT"),
-    ("trava_baixa_call", "Trava de Baixa com CALL"),
+    ("bear_call_spread", "Trava de Baixa com CALL"),
+    ("compra_put", "Compra de PUT"),
+    ("put_spread", "Trava de Baixa com PUT"),
     ("venda_put", "Venda de PUT"),
-    ("venda_call", "Venda de CALL"),
+    ("credit_put_spread", "Trava de Alta com PUT"),
+    ("compra_call", "Compra de CALL"),
+    ("iron_condor", "Iron Condor"),
 ]
 
 
@@ -787,26 +787,26 @@ def analisar_sugestoes(
     preco_atual: float,
     estrategia: str = "auto",
     vencimento_dias_min: int = MIN_DAYS_TO_EXPIRY,
-    vencimento_dias_max: int = 180,
+    vencimento_dias_max: int = MAX_DAYS_TO_EXPIRY,
     indicadores: Optional[dict[str, Any]] = None,
 ) -> dict[str, Any]:
     """
-    Analisa as opções disponíveis e sugere as melhores estruturas.
+    Analisa opções e sugere estruturas baseado na matriz ANALISE.md.
     
     Args:
         ticker: Ticker do ativo
         options: Lista de opções disponíveis
         preco_atual: Preço atual do ativo
         estrategia: Tipo de estratégia
-        vencimento_dias_min: Dias mínimos até vencimento
-        vencimento_dias_max: Dias máximos até vencimento
-        indicadores: Indicadores técnicos (ema9, ema21, ema200, rsi, adx, macd, macd_signal, bb_upper, bb_lower, bb_width)
+        vencimento_dias_min/max: Faixa de dias até vencimento
+        indicadores: Indicadores técnicos do Yahoo Finance
     """
     resultado = {
         "ticker": ticker.upper(),
         "preco_atual": preco_atual,
         "timestamp": None,
-        "analise_tecnica": {},
+        "cenario": {},
+        "iv_nivel": "",
         "estrategia_sugerida": "",
         "sugestoes": [],
         "observacoes": "",
@@ -819,14 +819,40 @@ def analisar_sugestoes(
         indicadores = {}
     indicadores["price"] = preco_atual
     
-    decisao = decidir_estrategia(indicadores)
-    # Traduzir resultado para português
-    resultado["analise_tecnica"] = _traduzir_resultado(decisao)
-    resultado["estrategia_sugerida"] = ESTRATEGIA_NOME.get(decisao["estrategia_sugerida"], decisao["estrategia_sugerida"])
+    # Classificar cenário
+    cenario = classificar_cenario(
+        price=preco_atual,
+        ema9=indicadores.get("ema9", 0),
+        ema21=indicadores.get("ema21", 0),
+        ema200=indicadores.get("ema200", 0),
+        rsi=indicadores.get("rsi"),
+        adx=indicadores.get("adx"),
+        bb_upper=indicadores.get("bb_upper"),
+        bb_lower=indicadores.get("bb_lower"),
+        bb_width=indicadores.get("bb_width"),
+    )
+    resultado["cenario"] = cenario
     
+    # Classificar IV
+    iv_rank = indicadores.get("iv_rank")
+    vi_media = indicadores.get("vi_media")
+    iv_nivel = classificar_iv(iv_rank, vi_media)
+    resultado["iv_nivel"] = IV_NIVEL_NOME.get(iv_nivel, iv_nivel)
+    
+    # Decidir estratégia
+    decisao = decidir_estrategia(
+        cenario=cenario["cenario"],
+        iv_nivel=iv_nivel,
+        adx_forte=cenario["adx_forte"],
+        bb_squeeze=cenario["bb_squeeze"],
+    )
+    resultado["estrategia_sugerida"] = ESTRATEGIA_NOME.get(decisao["estrategia"], decisao["estrategia"])
+    resultado["observacoes"] = decisao["justificativa"]
+    
+    # Filtrar e agrupar opções
     options_filtradas = _filtro_opcoes(options)
     if len(options_filtradas) < 4:
-        resultado["observacoes"] = f"Poucas opções com liquidez adequada. Encontradas apenas {len(options_filtradas)}."
+        resultado["observacoes"] += f" Poucas opções disponíveis: {len(options_filtradas)}."
         return resultado
     
     series_brutas = _agrupar_por_serie(options_filtradas)
@@ -844,66 +870,44 @@ def analisar_sugestoes(
             series[s] = {"calls": calls, "puts": puts, "dias": opts[0].get("dias_vencimento", 0)}
     
     if not series:
-        resultado["observacoes"] = "Não há séries completas com CALLs e PUTs."
+        resultado["observacoes"] += " Não há séries completas com CALLs e PUTs."
         return resultado
     
-    estrategia_principal = decisao["estrategia_sugerida"]
-    sugestoes = []
-    
+    # Buscar sugestões conforme estratégia
     estrategia_map = {
-        "BULL_SPREAD": lambda: _buscar_melhor_bull_spread(series, preco_atual),
-        "BEAR_SPREAD": lambda: _buscar_melhor_bear_spread(series, preco_atual),
-        "SELL_PUT": lambda: _buscar_melhor_venda_put(series, preco_atual),
-        "SELL_CALL": lambda: _buscar_melhor_venda_call(series, preco_atual),
-        "THL": lambda: _buscar_melhor_venda_put(series, preco_atual) + _buscar_melhor_venda_call(series, preco_atual),
+        "BEAR_CALL_SPREAD": lambda: _buscar_bear_call_spread(series, preco_atual),
+        "COMPRA_PUT": lambda: _buscar_compra_put(series, preco_atual),
+        "PUT_SPREAD": lambda: _buscar_put_spread(series, preco_atual),
+        "VENDA_PUT": lambda: _buscar_venda_put(series, preco_atual),
+        "CREDIT_PUT_SPREAD": lambda: _buscar_credit_put_spread(series, preco_atual),
+        "COMPRA_CALL": lambda: _buscar_compra_call(series, preco_atual),
+        "IRON_CONDOR": lambda: _buscar_iron_condor(series, preco_atual),
     }
     
+    sugestoes = []
     if estrategia == "auto":
-        if estrategia_principal in estrategia_map:
-            sugestoes = estrategia_map[estrategia_principal]()
-        else:
+        estrat_key = decisao["estrategia"]
+        if estrat_key in estrategia_map:
+            sugestoes = estrategia_map[estrat_key]()
+        
+        # Se nao encontrou sugestoes para a estrategia, tentar alternativas
+        if not sugestoes:
+            # Fallback: buscar venda put e bear call spread
             sugestoes = (
-                _buscar_melhor_bull_spread(series, preco_atual) +
-                _buscar_melhor_bear_spread(series, preco_atual) +
-                _buscar_melhor_venda_put(series, preco_atual) +
-                _buscar_melhor_venda_call(series, preco_atual)
+                _buscar_venda_put(series, preco_atual) +
+                _buscar_bear_call_spread(series, preco_atual) +
+                _buscar_compra_call(series, preco_atual) +
+                _buscar_compra_put(series, preco_atual)
             )
             sugestoes.sort(key=lambda x: x.get("score", 0), reverse=True)
-    elif estrategia == "trava_alta_put":
-        sugestoes = _buscar_melhor_bull_spread(series, preco_atual)
-    elif estrategia == "trava_baixa_put":
-        sugestoes = _buscar_melhor_bear_spread(series, preco_atual)
-    elif estrategia == "trava_baixa_call":
-        sugestoes = _buscar_melhor_trava_baixa_call(series, preco_atual)
-    elif estrategia == "venda_put":
-        sugestoes = _buscar_melhor_venda_put(series, preco_atual)
-    elif estrategia == "venda_call":
-        sugestoes = _buscar_melhor_venda_call(series, preco_atual)
+            if sugestoes:
+                resultado["observacoes"] += f" (Estrategia original '{ESTRATEGIA_NOME.get(estrat_key, estrat_key)}' nao disponivel, alternativas sugeridas.)"
+    elif estrategia in estrategia_map:
+        sugestoes = estrategia_map[estrategia]()
     
     resultado["sugestoes"] = sugestoes
-    resultado["observacoes"] = decisao["justificativa"]
     
-    if not sugestoes and estrategia_principal != "NO_TRADE":
+    if not sugestoes and decisao["estrategia"] != "NENHUMA":
         resultado["observacoes"] += " Nenhuma combinação adequada encontrada."
     
     return resultado
-
-
-def _buscar_melhor_trava_baixa_call(series: dict[str, dict], preco_base: float, max_sugestoes: int = 3) -> list[dict]:
-    """Encontra as melhores Trava de Baixa com CALL."""
-    sugestoes = []
-    for serie_nome, dados in series.items():
-        calls = dados["calls"]
-        for i, call_venda in enumerate(calls):
-            k_venda = call_venda.get("strike", 0)
-            if k_venda < preco_base * 1.02 or k_venda > preco_base * 1.12:
-                continue
-            for call_compra in calls[i+1:]:
-                k_compra = call_compra.get("strike", 0)
-                if k_compra <= k_venda or k_compra > k_venda * 1.15:
-                    continue
-                if (k_compra - k_venda) / k_venda > 0.20:
-                    continue
-                sugestoes.append(_calcular_trava_baixa_call(call_venda, call_compra, preco_base))
-    sugestoes.sort(key=lambda x: x["score"], reverse=True)
-    return sugestoes[:max_sugestoes]

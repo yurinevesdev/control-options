@@ -436,9 +436,30 @@
         loadingArea.style.display = 'none';
         resultadoArea.style.display = 'block';
 
+        // Cenário e IV (novo formato ANALISE.md)
+        const cenario = data.cenario || {};
+        const ivNivel = data.iv_nivel || 'N/A';
+        const cenarioMap = {
+            'TOPO': { nome: 'Esticado no Topo', badge: 'badge-DOWN' },
+            'FUNDO': { nome: 'Suporte / Fundo', badge: 'badge-UP' },
+            'LATERAL': { nome: 'Lateral (Consolidacao)', badge: 'badge-SIDEWAYS' },
+        };
+        const cenarioInfo = cenarioMap[cenario.cenario] || { nome: cenario.cenario || 'N/A', badge: '' };
+        const ivBadge = ivNivel === 'Alta' ? 'badge-DOWN' : ivNivel === 'Baixa' ? 'badge-UP' : '';
+
+        const cenarioHtml = '<div class="indicadores-grid">' +
+            '<div class="indicador-item"><span class="indicador-label">Cenario</span><span class="tendencia-badge ' + cenarioInfo.badge + '">' + cenarioInfo.nome + '</span></div>' +
+            '<div class="indicador-item"><span class="indicador-label">Nivel IV</span><span class="tendencia-badge ' + ivBadge + '">' + ivNivel + '</span></div>' +
+            '<div class="indicador-item"><span class="indicador-label">Dist. EMA21</span><span class="indicador-value">' + (cenario.distancia_ema21_pct || '-') + '%</span></div>' +
+            '<div class="indicador-item"><span class="indicador-label">RSI Sobrecomprado</span><span class="indicador-value">' + (cenario.rsi_sobrecomprado ? 'Sim' : 'Nao') + '</span></div>' +
+            '<div class="indicador-item"><span class="indicador-label">RSI Sobrevendido</span><span class="indicador-value">' + (cenario.rsi_sobrevendido ? 'Sim' : 'Nao') + '</span></div>' +
+            '<div class="indicador-item"><span class="indicador-label">BB Squeeze</span><span class="indicador-value">' + (cenario.bb_squeeze ? 'Sim' : 'Nao') + '</span></div>' +
+            '</div>' +
+            '<div class="observacoes-box" style="margin-top:0.75rem">' + (cenario.justificativa || '') + '</div>';
+        document.getElementById('indicadores-content').innerHTML = cenarioHtml;
+
         // Indicadores tecnicos
-        const tecnica = data.analise_tecnica || {};
-        const ind = tecnica.indicadores || {};
+        const ind = data.analise_tecnica?.indicadores || {};
         if (ind.price) {
             const indHtml = '<div class="indicadores-grid">' +
                 '<div class="indicador-item"><span class="indicador-label">Preco</span><span class="indicador-value">R$ ' + ind.price + '</span></div>' +
@@ -452,44 +473,13 @@
                 '<div class="indicador-item"><span class="indicador-label">BB Upper</span><span class="indicador-value">' + (ind.bb_upper || '-') + '</span></div>' +
                 '<div class="indicador-item"><span class="indicador-label">BB Lower</span><span class="indicador-value">' + (ind.bb_lower || '-') + '</span></div>' +
                 '<div class="indicador-item"><span class="indicador-label">BB Width</span><span class="indicador-value">' + (ind.bb_width || '-') + '</span></div>' +
+                (ind.vi_media ? '<div class="indicador-item"><span class="indicador-label">VI Media</span><span class="indicador-value">' + ind.vi_media + '%</span></div>' : '') +
                 '</div>';
-            document.getElementById('indicadores-content').innerHTML = indHtml;
+            document.getElementById('tendencia-content').innerHTML = indHtml;
         }
 
-        // Analise de tendencia (valores ja traduzidos pelo backend)
-        const tendenciaDir = tecnica.tendencia || 'N/A';
-        const badgeMap = { 'Alta': 'badge-UP', 'Baixa': 'badge-DOWN', 'Lateral': 'badge-SIDEWAYS' };
-        const badgeClass = badgeMap[tendenciaDir] || '';
-        const tendenciaHtml = '<div class="tendencia-grid">' +
-            '<div class="tendencia-item">' +
-            '<span class="tendencia-label">Tendencia</span>' +
-            '<span class="tendencia-badge ' + badgeClass + '">' + tendenciaDir + '</span>' +
-            '</div>' +
-            '<div class="tendencia-item">' +
-            '<span class="tendencia-label">Forca</span>' +
-            '<span class="tendencia-value">' + (tecnica.tendencia_forca || 'N/A') + '</span>' +
-            '</div>' +
-            '<div class="tendencia-item">' +
-            '<span class="tendencia-label">Volatilidade</span>' +
-            '<span class="tendencia-value">' + (tecnica.volatilidade || 'N/A') + '</span>' +
-            '</div>' +
-            '<div class="tendencia-item">' +
-            '<span class="tendencia-label">Momento</span>' +
-            '<span class="tendencia-value">' + (tecnica.momentum || 'N/A') + '</span>' +
-            '</div>' +
-            '<div class="tendencia-item">' +
-            '<span class="tendencia-label">Sobrecomprado</span>' +
-            '<span class="tendencia-value">' + (tecnica.sobrecomprado ? 'Sim' : 'Nao') + '</span>' +
-            '</div>' +
-            '<div class="tendencia-item">' +
-            '<span class="tendencia-label">Sobrevendido</span>' +
-            '<span class="tendencia-value">' + (tecnica.sobrevendido ? 'Sim' : 'Nao') + '</span>' +
-            '</div>' +
-            '</div>';
-        document.getElementById('tendencia-content').innerHTML = tendenciaHtml;
-
         // Status
-        const apdo = data.estrategia_sugerida !== 'Nao Operar';
+        const apdo = data.estrategia_sugerida !== 'Aguardar melhor oportunidade';
         let statusHtml = '';
         if (apdo) {
             statusHtml = '<div class="observacoes-box status-sucesso">' +

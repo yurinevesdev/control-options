@@ -722,13 +722,13 @@ def create_app() -> Flask:
         dias_max = data.get("dias_max", 180)
         
         try:
-            # Buscar indicadores técnicos do Yahoo Finance automaticamente
-            indicadores = buscar_indicadores(ticker)
+            # Buscar opções detalhadas do DB primeiro (para VI média)
+            opcoes_db = buscar_opcoes_serie(db, ticker)
+            
+            # Buscar indicadores técnicos do Yahoo Finance com opções
+            indicadores = buscar_indicadores(ticker, opcoes=opcoes_db)
             if not indicadores:
                 log.warning("Não foi possível obter indicadores técnicos para %s", ticker)
-            
-            # Buscar opções detalhadas do DB
-            opcoes_db = buscar_opcoes_serie(db, ticker)
             
             # Se não tem no DB, tentar buscar do OpLab
             if not opcoes_db:

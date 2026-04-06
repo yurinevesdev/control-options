@@ -127,6 +127,7 @@ def buscar_indicadores(
     ticker: str,
     period: str = "1y",
     interval: str = "1d",
+    opcoes: Optional[list[dict]] = None,
 ) -> Optional[dict[str, Any]]:
     """
     Busca dados do Yahoo Finance e calcula indicadores técnicos.
@@ -198,6 +199,13 @@ def buscar_indicadores(
         bb_lo = float(bb_lower.iloc[-1])
         bb_w = float(bb_width.iloc[-1])
         
+        # Calcular VI média das opções se disponíveis
+        vi_media = None
+        if opcoes:
+            vis = [o.get("vi", 0) for o in opcoes if (o.get("vi", 0) or 0) > 0]
+            if vis:
+                vi_media = round(sum(vis) / len(vis), 2)
+        
         resultado = {
             "price": round(price, 2),
             "ema9": round(ema9, 2),
@@ -210,6 +218,8 @@ def buscar_indicadores(
             "bb_upper": round(bb_up, 2),
             "bb_lower": round(bb_lo, 2),
             "bb_width": round(bb_w, 4),
+            "vi_media": vi_media,
+            "iv_rank": None,  # Será calculado quando tivermos histórico
         }
         
         log.info("Indicadores calculados para %s: price=%.2f, RSI=%.1f, ADX=%.1f", ticker, price, rsi, adx)
