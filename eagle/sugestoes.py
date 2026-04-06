@@ -509,8 +509,12 @@ def _agrupar_por_serie(options: list[dict]) -> dict[str, list[dict]]:
 
 def _calcular_trava_alta_put(put_venda: dict, put_compra: dict, preco_base: float) -> dict[str, Any]:
     """Trava de Alta com PUT (Bull Put Spread)."""
-    premio_venda = _meio_preco(put_venda.get("bid", 0) or 0, put_venda.get("ask", 0) or 0)
-    premio_compra = _meio_preco(put_compra.get("bid", 0) or 0, put_compra.get("ask", 0) or 0)
+    premio_venda = put_venda.get("ultimo_preco", 0) or 0
+    if premio_venda <= 0:
+        premio_venda = _meio_preco(put_venda.get("bid", 0) or 0, put_venda.get("ask", 0) or 0)
+    premio_compra = put_compra.get("ultimo_preco", 0) or 0
+    if premio_compra <= 0:
+        premio_compra = _meio_preco(put_compra.get("bid", 0) or 0, put_compra.get("ask", 0) or 0)
     k1 = put_venda.get("strike", 0)
     k2 = put_compra.get("strike", 0)
     credito = premio_venda - premio_compra
@@ -545,8 +549,12 @@ def _calcular_trava_alta_put(put_venda: dict, put_compra: dict, preco_base: floa
 
 def _calcular_trava_baixa_put(put_compra: dict, put_venda: dict, preco_base: float) -> dict[str, Any]:
     """Trava de Baixa com PUT (Bear Put Spread)."""
-    premio_compra = _meio_preco(put_compra.get("bid", 0) or 0, put_compra.get("ask", 0) or 0)
-    premio_venda = _meio_preco(put_venda.get("bid", 0) or 0, put_venda.get("ask", 0) or 0)
+    premio_compra = put_compra.get("ultimo_preco", 0) or 0
+    if premio_compra <= 0:
+        premio_compra = _meio_preco(put_compra.get("bid", 0) or 0, put_compra.get("ask", 0) or 0)
+    premio_venda = put_venda.get("ultimo_preco", 0) or 0
+    if premio_venda <= 0:
+        premio_venda = _meio_preco(put_venda.get("bid", 0) or 0, put_venda.get("ask", 0) or 0)
     k1 = put_compra.get("strike", 0)
     k2 = put_venda.get("strike", 0)
     debito = premio_compra - premio_venda
@@ -584,8 +592,12 @@ def _calcular_trava_baixa_put(put_compra: dict, put_venda: dict, preco_base: flo
 
 def _calcular_trava_baixa_call(call_venda: dict, call_compra: dict, preco_base: float) -> dict[str, Any]:
     """Trava de Baixa com CALL (Bear Call Spread)."""
-    premio_venda = _meio_preco(call_venda.get("bid", 0) or 0, call_venda.get("ask", 0) or 0)
-    premio_compra = _meio_preco(call_compra.get("bid", 0) or 0, call_compra.get("ask", 0) or 0)
+    premio_venda = call_venda.get("ultimo_preco", 0) or 0
+    if premio_venda <= 0:
+        premio_venda = _meio_preco(call_venda.get("bid", 0) or 0, call_venda.get("ask", 0) or 0)
+    premio_compra = call_compra.get("ultimo_preco", 0) or 0
+    if premio_compra <= 0:
+        premio_compra = _meio_preco(call_compra.get("bid", 0) or 0, call_compra.get("ask", 0) or 0)
     k1 = call_venda.get("strike", 0)
     k2 = call_compra.get("strike", 0)
     credito = premio_venda - premio_compra
@@ -619,7 +631,9 @@ def _calcular_trava_baixa_call(call_venda: dict, call_compra: dict, preco_base: 
 
 def _calcular_venda_put(put: dict, preco_base: float) -> dict[str, Any]:
     """Venda de PUT (Cash Secured Put ou parte de THL)."""
-    premio = _meio_preco(put.get("bid", 0) or 0, put.get("ask", 0) or 0)
+    premio = put.get("ultimo_preco", 0) or 0
+    if premio <= 0:
+        premio = _meio_preco(put.get("bid", 0) or 0, put.get("ask", 0) or 0)
     strike = put.get("strike", 0)
     delta = put.get("delta", 0) or 0
     poe = put.get("poe", 0) or 0
@@ -653,7 +667,9 @@ def _calcular_venda_put(put: dict, preco_base: float) -> dict[str, Any]:
 
 def _calcular_venda_call(call: dict, preco_base: float) -> dict[str, Any]:
     """Venda de CALL (Covered Call ou parte de THL)."""
-    premio = _meio_preco(call.get("bid", 0) or 0, call.get("ask", 0) or 0)
+    premio = call.get("ultimo_preco", 0) or 0
+    if premio <= 0:
+        premio = _meio_preco(call.get("bid", 0) or 0, call.get("ask", 0) or 0)
     strike = call.get("strike", 0)
     delta = call.get("delta", 0) or 0
     poe = call.get("poe", 0) or 0
