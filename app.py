@@ -48,6 +48,7 @@ from eagle.opcoes_scraper import (
     buscar_opcoes_serie,
 )
 from eagle.sugestoes import analisar_sugestoes
+from eagle.precos import atualizar_precos_estrutura, atualizar_todas_estruturas_em_andamento
 
 # -------------------------------------------------------------------------
 # Setup
@@ -381,6 +382,52 @@ def create_app() -> Flask:
         if eid:
             return redirect(url_for("simulador", eid=eid))
         return redirect(url_for("simulador"))
+
+    # ---- Rotas de atualização de preços ----
+
+    @app.route("/api/estrutura/<int:eid>/atualizar-precos", methods=["POST"])
+    @rate_limit(max_calls=10, window=60)
+    def api_atualizar_precos(eid: int):
+        """API para atualizar preços do ativo e opções de uma estrutura."""
+        est = db.get("estruturas", eid)
+        if not est:
+            return jsonify({"error": "Estrutura não encontrada"}), 404
+        
+        resultado = atualizar_precos_estrutura(db, eid)
+        return jsonify(resultado)
+
+    @app.route("/api/estruturas/atualizar-todas", methods=["POST"])
+    @rate_limit(max_calls=5, window=300)
+    def api_atualizar_todas():
+        """API para atualizar preços de todas as estruturas em andamento."""
+        resultados = atualizar_todas_estruturas_em_andamento(db)
+        total = len(resultados)
+        sucessos = sum(1 for r in resultados.values() if r["ativo_atualizado"])
+        return jsonify({
+            "success": True,
+            "total": total,
+            "sucessos": sucessos,
+            "resultados": resultados,
+        })
+
+    @app.route("/simulador/estrutura/<int:eid>/mudar-status", methods=["POST"])
+    def mudar_status_estrutura(eid: int):
+        """Muda o status da estrutura entre 'em_andamento' e 'finalizada'."""
+        est = db.get("estruturas", eid)
+        if not est:
+            flash("Estrutura não encontrada.", "error")
+            return _safe_redirect("simulador")
+        
+        status_atual = est.get("status", "em_andamento")
+        novo_status = "finalizada" if status_atual == "em_andamento" else "em_andamento"
+        
+        # Preciso adicionar método para atualizar apenas o status
+        db.update_status_estrutura(eid, novo_status)
+        
+        status_label = "finalizada" if novo_status == "finalizada" else "em andamento"
+        flash(f"Estrutura marcada como '{status_label}'.", "info")
+        
+        return redirect(url_for("simulador", eid=eid))
 
     @app.route("/export/csv")
     def export_csv():

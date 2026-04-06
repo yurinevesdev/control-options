@@ -30,7 +30,14 @@
                 style="text-decoration:none;color:inherit;display:block;">
                 <div class="struct-item-row">
                     <div class="struct-item-info">
-                        <div class="struct-nome">{{ e.nome }}</div>
+                        <div class="struct-nome">
+                            {{ e.nome }}
+                            {% if e.status == 'finalizada' %}
+                            <span class="status-badge status-finalizada">Finalizada</span>
+                            {% else %}
+                            <span class="status-badge status-andamento">Em andamento</span>
+                            {% endif %}
+                        </div>
                         <div class="struct-meta">{{ e.ativo or '?' }} · {{ e.tipo or '—' }}</div>
                     </div>
                     <div class="struct-pnl {{ color_pnl(e._premio_liq) }}">{{ brl(e._premio_liq) }}</div>
@@ -75,6 +82,33 @@
                         </p>
                     </div>
                     <div class="struct-header-actions">
+                        <!-- Status badge -->
+                        {% if estrutura.status == 'finalizada' %}
+                        <span class="status-badge status-finalizada" style="align-self:center;">Finalizada</span>
+                        {% else %}
+                        <span class="status-badge status-andamento" style="align-self:center;">Em andamento</span>
+                        {% endif %}
+
+                        <!-- Botão atualizar preços -->
+                        <button type="button" class="btn btn-sm btn-success" id="btn-atualizar-precos"
+                            onclick="atualizarPrecos({{ estrutura.id }})">
+                            🔄 Atualizar Preços
+                        </button>
+
+                        <!-- Botão mudar status -->
+                        <form method="post" action="{{ url_for('mudar_status_estrutura', eid=estrutura.id) }}"
+                            style="display:inline">
+                            {% if estrutura.status == 'finalizada' %}
+                            <button type="submit" class="btn btn-sm" title="Reabrir estrutura">
+                                ↩ Reabrir
+                            </button>
+                            {% else %}
+                            <button type="submit" class="btn btn-sm btn-warning" title="Marcar como finalizada">
+                                ✓ Finalizar
+                            </button>
+                            {% endif %}
+                        </form>
+
                         <a class="btn btn-sm"
                             href="{{ url_for('simulador', eid=estrutura.id, modal_est=1, edit_est=estrutura.id) }}">✎
                             Editar</a>
@@ -478,6 +512,53 @@
             if (prem && !prem.value && d.preco_sugerido != null) prem.value = Number(d.preco_sugerido).toFixed(4);
         }).catch(function () { });
     });
+
+    // Função para atualizar preços via AJAX
+    function atualizarPrecos(eid) {
+        const btn = document.getElementById('btn-atualizar-precos');
+        if (!btn || btn.classList.contains('loading')) return;
+
+        // Mostrar loading
+        btn.classList.add('loading');
+        btn.textContent = 'Atualizando...';
+
+        fetch('/api/estrutura/' + eid + '/atualizar-precos', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        })
+            .then(r => r.json())
+            .then(dados => {
+                btn.classList.remove('loading');
+
+                if (dados.error) {
+                    alert('Erro: ' + dados.error);
+                    return;
+                }
+
+                // Mostrar resultado
+                let msg = 'Atualização concluída!\\n\\n';
+                msg += 'Ativo: ' + (dados.ativo_atualizado ? '✓ Atualizado' : '✗ Falha');
+                if (dados.preco_ativo) msg += ' (R$ ' + dados.preco_ativo.toFixed(2) + ')';
+                msg += '\\n';
+                msg += 'Opções: ' + dados.opcoes_atualizadas + ' atualizada(s)';
+
+                if (dados.erros && dados.erros.length > 0) {
+                    msg += '\\n\\nErros:\\n' + dados.erros.join('\\n');
+                }
+
+                alert(msg);
+
+                // Recarregar página para ver os novos preços
+                if (dados.ativo_atualizado || dados.opcoes_atualizadas > 0) {
+                    window.location.reload();
+                }
+            })
+            .catch(err => {
+                btn.classList.remove('loading');
+                alert('Erro ao atualizar preços. Tente novamente.');
+                console.error('Erro:', err);
+            });
+    }
 </script>
 {% endif %}
 {% endblock %}

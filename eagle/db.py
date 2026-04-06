@@ -34,6 +34,7 @@ def _row_estrutura(row: sqlite3.Row) -> dict[str, Any]:
         "precoAtual": row["preco_atual"],
         "dataVenc": row["data_venc"],
         "obs": row["obs"],
+        "status": row["status"] or "em_andamento",
         "criadoEm": row["criado_em"],
         "atualizadoEm": row["atualizado_em"],
     }
@@ -76,7 +77,9 @@ class Database:
     def _init_schema(self) -> None:
         c = self._conn
         assert c is not None
-        c.executescript(
+        
+        # Criar tabela base sem status (para compatibilidade)
+        c.execute(
             """
             CREATE TABLE IF NOT EXISTS estruturas (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -88,12 +91,19 @@ class Database:
                 obs TEXT,
                 criado_em TEXT,
                 atualizado_em TEXT
-            );
-            CREATE INDEX IF NOT EXISTS idx_est_criado ON estruturas(criado_em);
-            CREATE INDEX IF NOT EXISTS idx_est_tipo ON estruturas(tipo);
-            CREATE INDEX IF NOT EXISTS idx_est_ativo ON estruturas(ativo);
-            CREATE INDEX IF NOT EXISTS idx_est_venc ON estruturas(data_venc);
-
+            )
+            """
+        )
+        
+        # Índices básicos
+        c.execute("CREATE INDEX IF NOT EXISTS idx_est_criado ON estruturas(criado_em)")
+        c.execute("CREATE INDEX IF NOT EXISTS idx_est_tipo ON estruturas(tipo)")
+        c.execute("CREATE INDEX IF NOT EXISTS idx_est_ativo ON estruturas(ativo)")
+        c.execute("CREATE INDEX IF NOT EXISTS idx_est_venc ON estruturas(data_venc)")
+        
+        # Tabela legs
+        c.execute(
+            """
             CREATE TABLE IF NOT EXISTS legs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 estrutura_id INTEGER NOT NULL REFERENCES estruturas(id) ON DELETE CASCADE,
@@ -109,15 +119,31 @@ class Database:
                 gamma REAL,
                 theta REAL,
                 vega REAL
-            );
-            CREATE INDEX IF NOT EXISTS idx_legs_est ON legs(estrutura_id);
-            CREATE INDEX IF NOT EXISTS idx_legs_tipo ON legs(tipo);
-            CREATE INDEX IF NOT EXISTS idx_legs_strike ON legs(strike);
-            CREATE INDEX IF NOT EXISTS idx_legs_venc ON legs(vencimento);
-            CREATE INDEX IF NOT EXISTS idx_legs_ticker ON legs(ticker);
+            )
             """
         )
+        c.execute("CREATE INDEX IF NOT EXISTS idx_legs_est ON legs(estrutura_id)")
+        c.execute("CREATE INDEX IF NOT EXISTS idx_legs_tipo ON legs(tipo)")
+        c.execute("CREATE INDEX IF NOT EXISTS idx_legs_strike ON legs(strike)")
+        c.execute("CREATE INDEX IF NOT EXISTS idx_legs_venc ON legs(vencimento)")
+        c.execute("CREATE INDEX IF NOT EXISTS idx_legs_ticker ON legs(ticker)")
+        
         c.commit()
+        
+        # Migração: adicionar coluna status se não existir (bancos antigos)
+        try:
+            c.execute("ALTER TABLE estruturas ADD COLUMN status TEXT DEFAULT 'em_andamento'")
+            c.commit()
+            log.info("Coluna 'status' adicionada à tabela estruturas")
+        except Exception:
+            pass  # Coluna já existe
+        
+        # Índice de status (só após coluna existir)
+        try:
+            c.execute("CREATE INDEX IF NOT EXISTS idx_est_status ON estruturas(status)")
+            c.commit()
+        except Exception:
+            pass
 
     def backup(self, dest_path: Path | str) -> Path:
         """Cria backup da base de dados."""
@@ -172,7 +198,7 @@ class Database:
         oid = obj.get("id")
         if oid:
             conn.execute(
-                """UPDATE estruturas SET nome=?, ativo=?, tipo=?, preco_atual=?, data_venc=?, obs=?, criado_em=?, atualizado_em=?
+                """UPDATE estruturas SET nome=?, ativo=?, tipo=?, preco_atual=?, data_venc=?, obs=?, status=?, criado_em=?, atualizado_em=?
                    WHERE id=?""",
                 (
                     obj.get("nome"),
@@ -181,6 +207,7 @@ class Database:
                     obj.get("precoAtual"),
                     obj.get("dataVenc"),
                     obj.get("obs"),
+                    obj.get("status", "em_andamento"),
                     obj.get("criadoEm"),
                     obj.get("atualizadoEm"),
                     oid,
@@ -190,8 +217,8 @@ class Database:
                 conn.commit()
             return int(oid)
         cur = conn.execute(
-            """INSERT INTO estruturas (nome, ativo, tipo, preco_atual, data_venc, obs, criado_em, atualizado_em)
-               VALUES (?,?,?,?,?,?,?,?)""",
+            """INSERT INTO estruturas (nome, ativo, tipo, preco_atual, data_venc, obs, status, criado_em, atualizado_em)
+               VALUES (?,?,?,?,?,?,?,?,?)""",
             (
                 obj.get("nome"),
                 obj.get("ativo"),
@@ -199,6 +226,7 @@ class Database:
                 obj.get("precoAtual"),
                 obj.get("dataVenc"),
                 obj.get("obs"),
+                obj.get("status", "em_andamento"),
                 obj.get("criadoEm"),
                 obj.get("atualizadoEm"),
             ),
@@ -257,6 +285,12 @@ class Database:
         if autocommit:
             conn.commit()
         return int(cur.lastrowid)
+
+    def update_status_estrutura(self, eid: int, status: str) -> None:
+        """Atualiza apenas o status de uma estrutura."""
+        conn = self.connect()
+        conn.execute("UPDATE estruturas SET status = ?, atualizado_em = ? WHERE id = ?", (status, _now_iso(), eid))
+        conn.commit()
 
     def delete_estrutura(self, eid: int) -> None:
         conn = self.connect()

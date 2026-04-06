@@ -922,6 +922,82 @@ input[type="checkbox"] {
     color: var(--blue);
 }
 
+/* ─── STATUS BADGES ─────────────────────────────────────── */
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    white-space: nowrap;
+    vertical-align: middle;
+}
+
+.status-andamento {
+    background: rgba(74, 222, 128, .12);
+    color: var(--green);
+    border: 1px solid rgba(74, 222, 128, .2);
+}
+
+.status-finalizada {
+    background: rgba(139, 144, 160, .12);
+    color: var(--text2);
+    border: 1px solid rgba(139, 144, 160, .2);
+}
+
+/* ─── BOTAO SUCESSO ─────────────────────────────────────── */
+.btn-success {
+    background: rgba(74, 222, 128, .15);
+    border-color: rgba(74, 222, 128, .3);
+    color: var(--green);
+}
+
+.btn-success:hover {
+    background: rgba(74, 222, 128, .25);
+    border-color: rgba(74, 222, 128, .5);
+}
+
+/* ─── BOTAO WARNING ─────────────────────────────────────── */
+.btn-warning {
+    background: rgba(251, 191, 36, .15);
+    border-color: rgba(251, 191, 36, .3);
+    color: var(--amber);
+}
+
+.btn-warning:hover {
+    background: rgba(251, 191, 36, .25);
+    border-color: rgba(251, 191, 36, .5);
+}
+
+/* Loading state */
+.btn.loading {
+    opacity: .7;
+    pointer-events: none;
+    position: relative;
+}
+
+.btn.loading::after {
+    content: '...';
+    animation: dots 1s steps(3, end) infinite;
+}
+
+@keyframes dots {
+    0% {
+        content: '.';
+    }
+
+    33% {
+        content: '..';
+    }
+
+    66% {
+        content: '...';
+    }
+}
+
 /* ─── HISTÓRICO & DASHBOARD ─────────────────────────────── */
 .page-content {
     padding: 20px;
