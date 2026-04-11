@@ -7,10 +7,10 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from typing import Optional
 
-from .logger import get_logger
-from .config import SCHEDULER_HORA, EMAIL_NOTIFICACOES_ATIVAS, DB_PATH
-from .email_notifier import criar_notificador
-from .db import Database
+from system.ui.logger import get_logger
+from system.config import SCHEDULER_HORA, EMAIL_NOTIFICACOES_ATIVAS
+from system.notifications.email_notifier import criar_notificador
+from system.core.db import Database
 
 log = get_logger("scheduler")
 
@@ -44,7 +44,7 @@ def iniciar_scheduler():
     global _scheduler
     
     if not EMAIL_NOTIFICACOES_ATIVAS:
-        log.info("Notificações por e-mail desativadas (EAGLE_EMAIL_NOTIF=0)")
+        log.info("Notificações por e-mail desativadas (SYSTEM_EMAIL_NOTIF=0)")
         return
     
     if _scheduler is not None:

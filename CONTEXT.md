@@ -6,7 +6,7 @@
 
 ## 1. Visão geral
 
-**Yuri System** roda como **aplicação web em Python (Flask)** servida localmente (ou em servidor). O utilizador monta estruturas com várias pernas (legs), vê o payoff e métricas (ganho/perda máximos, break-evens, gregas). **Persistência:** SQLite em ficheiro no disco (`instance/eagle_opcoes_v2.sqlite`), não IndexedDB.
+**Yuri System** roda como **aplicação web em Python (Flask)** servida localmente (ou em servidor). O utilizador monta estruturas com várias pernas (legs), vê o payoff e métricas (ganho/perda máximos, break-evens, gregas). **Persistência:** SQLite em ficheiro no disco (`instance/SYSTEM_opcoes_v2.sqlite`), não IndexedDB.
 
 **Público-alvo:** traders de opções da B3 (Bull Spread, Iron Condor, Butterfly, etc.).
 
@@ -18,8 +18,8 @@
 |--------|------------|--------|
 | Backend | Python 3.10+ | Lógica, API, templates |
 | Framework | Flask 3.x | Rotas, sessão, Jinja2 |
-| Matemática | `eagle/blackscholes.py` | Black-Scholes (mesmo modelo que o antigo JS) |
-| Base de dados | SQLite | Ficheiro `instance/eagle_opcoes_v2.sqlite` |
+| Matemática | `system/blackscholes.py` | Black-Scholes (mesmo modelo que o antigo JS) |
+| Base de dados | SQLite | Ficheiro `instance/SYSTEM_opcoes_v2.sqlite` |
 | UI | Jinja2 + HTML | `templates/` |
 | Estilo | CSS3 | `static/css/style.css` |
 | Gráficos | Plotly (Python → HTML) | Payoff + dashboard (CDN Plotly.js no HTML gerado) |
@@ -39,8 +39,8 @@ control-options/
 ├── app.py                 # Flask: rotas, sessão, orquestração
 ├── requirements.txt
 ├── instance/
-│   └── eagle_opcoes_v2.sqlite
-├── eagle/
+│   └── SYSTEM_opcoes_v2.sqlite
+├── system/
 │   ├── __init__.py
 │   ├── config.py          # ★ NOVO: Config centralizada (BD, BS, estratégias, secrets)
 │   ├── logger.py          # ★ NOVO: Logging estruturado com cores
@@ -61,18 +61,18 @@ control-options/
 
 **Execução:** `python3 app.py` → `http://127.0.0.1:5000` (ou `flask --app app run`).
 
-### 3.1 Configuração (eagle/config.py)
+### 3.1 Configuração (system/config.py)
 
 Todas as configurações centralizadas via variáveis de ambiente com defaults seguros:
 
 | Variável | Default | Descrição |
 |----------|---------|-----------|
-| `EAGLE_SECRET` | `secrets.token_hex(32)` | Chave de sessão (gerada automaticamente) |
-| `EAGLE_DB` | `eagle_opcoes_v2.sqlite` | Nome do ficheiro DB |
-| `EAGLE_RATE` | `0.1075` | Taxa de juro usada no BS |
-| `EAGLE_DEBUG` | `1` | Modo debug |
-| `EAGLE_HOST` | `127.0.0.1` | Host do servidor |
-| `EAGLE_PORT` | `5000` | Porta do servidor |
+| `SYSTEM_SECRET` | `secrets.token_hex(32)` | Chave de sessão (gerada automaticamente) |
+| `SYSTEM_DB` | `system_opcoes_v2.sqlite` | Nome do ficheiro DB |
+| `SYSTEM_RATE` | `0.1075` | Taxa de juro usada no BS |
+| `SYSTEM_DEBUG` | `1` | Modo debug |
+| `SYSTEM_HOST` | `127.0.0.1` | Host do servidor |
+| `SYSTEM_PORT` | `5000` | Porta do servidor |
 
 ### 3.2 Estratégias predefinidas
 
@@ -89,7 +89,7 @@ O sistema inclui templates de estratégias (`ESTRATEGIAS_LIST`):
 - Strangle
 - Calendária Call
 
-### 3.3 Scraping de Opções (eagle/opcoes_scraper.py)
+### 3.3 Scraping de Opções (system/opcoes_scraper.py)
 
 Módulo para extrair dados de volatilidade implícita do **OpLab** (opcoes.oplab.com.br):
 
@@ -110,14 +110,14 @@ Módulo para extrair dados de volatilidade implícita do **OpLab** (opcoes.oplab
 
 | Rota | Descrição |
 |------|-----------|
-| `GET /export/csv` | Descarrega `eagle_export_YYYYMMDD_HHMMSS.zip` |
+| `GET /export/csv` | Descarrega `SYSTEM_export_YYYYMMDD_HHMMSS.zip` |
 | `POST /import/csv` | Formulário na página **Histórico** (multipart) |
 
 **ZIP:** contém `estruturas.csv` e `legs.csv` (UTF-8 com BOM), cabeçalhos em **snake_case**.
 
 ---
 
-## 4. Módulo `eagle/blackscholes.py` — motor matemático
+## 4. Módulo `system/blackscholes.py` — motor matemático
 
 Funções em **snake_case**; comportamento numérico replica o antigo `BS.*` em JS.
 
@@ -131,28 +131,28 @@ Funções em **snake_case**; comportamento numérico replica o antigo `BS.*` em 
 
 ---
 
-## 5. Módulo `eagle/db.py` — SQLite
+## 5. Módulo `system/db.py` — SQLite
 
-- **Ficheiro:** `instance/eagle_opcoes_v2.sqlite` (criado automaticamente).
+- **Ficheiro:** `instance/SYSTEM_opcoes_v2.sqlite` (criado automaticamente).
 - **WAL mode** ativado para melhor performance.
 - **Índices:** `tipo`, `ativo`, `data_venc` em `estruturas`; `tipo`, `strike`, `vencimento`, `ticker` em `legs`.
 - **Métodos novos:** `backup(dest)`, `close()`, `stats()`.
 
 ---
 
-## 6. Módulo `eagle/logger.py` — Logging
+## 6. Módulo `system/logger.py` — Logging
 
 Logging estruturado com cores para desenvolvimento:
 
 ```python
-from eagle.logger import setup_logging, get_logger
+from system.logger import setup_logging, get_logger
 log = get_logger("app")
 log.info("Estrutura salva: id=%s", eid)
 ```
 
 ---
 
-## 7. Módulo `eagle/config.py` — Configuração
+## 7. Módulo `system/config.py` — Configuração
 
 Configuração centralizada com variáveis de ambiente e lista de estratégias predefinidas.
 
@@ -214,7 +214,7 @@ Configuração centralizada com variáveis de ambiente e lista de estratégias p
 2. `premio` sempre positivo por contrato; sentido financeiro via `operacao`.
 3. Gregas automáticas com IV quando aplicável; fallback manual.
 4. `r = 0.1075` e `q = 0` no núcleo BS.
-5. Tipos de estratégia: lista configurável em `eagle/config.py`.
+5. Tipos de estratégia: lista configurável em `system/config.py`.
 6. Exclusão em cascata ao apagar estrutura.
 7. Margem ≈ `abs(perdaMax)`.
 8. Break-evens por cruzamento zero na curva de expiração.
@@ -235,7 +235,7 @@ Configuração centralizada com variáveis de ambiente e lista de estratégias p
 
 ## 12. Convenções Python
 
-- Tipagem e nomes em **snake_case** nos módulos `eagle/`.
+- Tipagem e nomes em **snake_case** nos módulos `system/`.
 - Dicts vindos da BD/templates com chaves **camelCase** para estruturas/pernas.
 - Alterações focadas; alinhar estilo aos ficheiros existentes.
 
@@ -245,10 +245,10 @@ Configuração centralizada com variáveis de ambiente e lista de estratégias p
 |-----------|------|
 | Campo novo na estrutura | Coluna em `db.py` + `save_estrutura`; formulário em `simulador.html`; rota `save_estrutura` |
 | Campo novo na perna | Idem em `legs` + modal perna + `save_leg` |
-| Novo cálculo BS | `eagle/blackscholes.py` |
-| Novo gráfico | `eagle/charts.py` + template da página |
+| Novo cálculo BS | `system/blackscholes.py` |
+| Novo gráfico | `system/charts.py` + template da página |
 | Nova página | Nova rota em `app.py` + template + link em `base.html` |
-| Nova fonte de dados | Novo módulo em `eagle/` + rota API + template |
+| Nova fonte de dados | Novo módulo em `system/` + rota API + template |
 
 ## 14. Migração JS → Python
 

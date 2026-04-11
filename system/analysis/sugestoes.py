@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from eagle.logger import get_logger
+from system.ui.logger import get_logger
 
 log = get_logger("sugestoes")
 

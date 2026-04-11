@@ -2,8 +2,8 @@
 Yuri System — aplicação Flask (port do controller js/app.js).
 
 Melhorias aplicadas:
-- Config centralizada em eagle.config
-- Logging estruturado em eagle.logger
+- Config centralizada em system.config
+- Logging estruturado em system.logger
 - Secret key seguro (secrets.token_hex)
 - CSRF básico via token de sessão
 - Rate limiting simples no preview-greeks
@@ -32,14 +32,14 @@ from flask import (
     url_for,
 )
 
-from eagle import blackscholes as BS
-from eagle.charts import dashboard_doughnut, dashboard_bar, payoff_figure
-from eagle.config import DEBUG, HOST, PORT, SECRET_KEY, ESTRATEGIAS_LIST, DB_PATH
-from eagle.csv_io import export_zip_bytes, import_merge_zip, zip_from_csv_parts
-from eagle.db import Database
-from eagle.logger import setup_logging, get_logger
-from eagle.ui_format import brl, color_pnl, dias_ate_venc, fmt_date
-from eagle.opcoes_scraper import (
+from system.core import blackscholes as BS
+from system.ui.charts import dashboard_doughnut, dashboard_bar, payoff_figure
+from system.config import DEBUG, HOST, PORT, SECRET_KEY, ESTRATEGIAS_LIST, DB_PATH
+from system.data.csv_io import export_zip_bytes, import_merge_zip, zip_from_csv_parts
+from system.core.db import Database
+from system.ui.logger import setup_logging, get_logger
+from system.ui.formatting import brl, color_pnl, dias_ate_venc, fmt_date
+from system.data.opcoes_scraper import (
     atualizar_dados_opcoes,
     buscar_opcoes_dados,
     carregar_cache as carregar_cache_opcoes,
@@ -47,9 +47,9 @@ from eagle.opcoes_scraper import (
     salvar_opcoes_detalhadas,
     buscar_opcoes_serie,
 )
-from eagle.sugestoes import analisar_sugestoes
-from eagle.precos import atualizar_precos_estrutura, atualizar_todas_estruturas_em_andamento
-from eagle.scheduler import iniciar_scheduler, parar_scheduler
+from system.analysis.sugestoes import analisar_sugestoes
+from system.data.precos import atualizar_precos_estrutura, atualizar_todas_estruturas_em_andamento
+from system.notifications.scheduler import iniciar_scheduler, parar_scheduler
 
 # -------------------------------------------------------------------------
 # Setup
@@ -480,7 +480,7 @@ def create_app() -> Flask:
     @app.route("/export/csv")
     def export_csv():
         data = export_zip_bytes(db)
-        name = f"eagle_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
+        name = f"system_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
         return Response(
             data,
             mimetype="application/zip",
@@ -635,7 +635,7 @@ def create_app() -> Flask:
         import shutil
         if not DB_PATH.exists():
             return abort(404, "Base de dados não encontrada.")
-        name = f"eagle_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.sqlite"
+        name = f"system_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.sqlite"
         backup_path = BASE_DIR / name
         shutil.copy2(DB_PATH, backup_path)
         return Response(
@@ -791,7 +791,7 @@ def create_app() -> Flask:
     @app.route("/sugestoes")
     def sugestoes_page():
         """Página de sugestão de estruturas de opções."""
-        from eagle.sugestoes import ESTRATEGIAS_DISPONIVEIS
+        from system.analysis.sugestoes import ESTRATEGIAS_DISPONIVEIS
         return render_template(
             "sugestoes.html",
             estrategias=ESTRATEGIAS_DISPONIVEIS,
@@ -803,8 +803,8 @@ def create_app() -> Flask:
     @rate_limit(max_calls=10, window=60)
     def api_sugestoes():
         """API para análise e sugestão de estruturas."""
-        from eagle.sugestoes import ESTRATEGIAS_DISPONIVEIS
-        from eagle.indicadores import buscar_indicadores
+        from system.analysis.sugestoes import ESTRATEGIAS_DISPONIVEIS
+        from system.analysis.indicadores import buscar_indicadores
         
         data = request.get_json(force=True, silent=True) or {}
         

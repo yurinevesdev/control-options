@@ -18,7 +18,7 @@ from typing import Optional
 import requests
 from bs4 import BeautifulSoup
 
-from eagle.logger import get_logger
+from system.ui.logger import get_logger
 
 log = get_logger("opcoes_scraper")
 
@@ -631,7 +631,7 @@ def buscar_opcoes_serie(db, ticker: str, serie: str = None) -> list[dict]:
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    from eagle.db import Database, get_db_path
+    from system.core.db import Database
     from pathlib import Path as P
 
     instance_dir = P(__file__).resolve().parent.parent / "instance"

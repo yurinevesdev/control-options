@@ -10,9 +10,9 @@ from email.mime.multipart import MIMEMultipart
 from datetime import datetime, timedelta
 from typing import List, Dict, Tuple
 
-from .logger import get_logger
-from .db import Database
-from . import config
+from system.ui.logger import get_logger
+from system.core.db import Database
+from system import config
 
 log = get_logger("email_notifier")
 

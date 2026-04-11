@@ -18,7 +18,7 @@ import numpy as np
 import pandas as pd
 import yfinance as yf
 
-from eagle.logger import get_logger
+from system.ui.logger import get_logger
 
 log = get_logger("indicadores")
 

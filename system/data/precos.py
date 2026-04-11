@@ -12,8 +12,8 @@ import requests
 from bs4 import BeautifulSoup
 from typing import Optional
 
-from eagle.logger import get_logger
-from eagle.opcoes_scraper import HEADERS, TIMEOUT, buscar_opcoes_serie
+from system.ui.logger import get_logger
+from system.data.opcoes_scraper import HEADERS, TIMEOUT, buscar_opcoes_serie
 
 log = get_logger("precos")
 
@@ -104,7 +104,7 @@ def obter_precos_opcoes_oplab(ticker: str, db=None) -> dict[str, dict]:
             return precos
         
         # Se não tem no DB, buscar do OpLab
-        from eagle.opcoes_scraper import formatar_opcoes_tabela
+        from system.data.opcoes_scraper import formatar_opcoes_tabela
         
         opcoes_api = formatar_opcoes_tabela(ticker)
         if opcoes_api:

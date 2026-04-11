@@ -8,8 +8,8 @@ from typing import Optional
 
 import plotly.graph_objects as go
 
-from eagle import blackscholes as BS
-from eagle.ui_format import brl
+from system.core import blackscholes as BS
+from system.ui.formatting import brl
 
 COLORS = {
     "profit_line": "#4ade80",

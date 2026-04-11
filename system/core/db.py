@@ -1,5 +1,5 @@
 """
-Camada de persistência SQLite — equivalente lógico a js/db.js (eagle_opcoes_v2).
+Camada de persistência SQLite — equivalente lógico a js/db.js (system_opcoes_v2).
 Colunas em snake_case no SQL; dicts expostos com chaves camelCase como no JS.
 
 Melhorias aplicadas:
@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
-from eagle.logger import get_logger
+from system.ui.logger import get_logger
 
 log = get_logger("db")
 
@@ -333,4 +333,4 @@ class Database:
 
 
 def get_db_path(instance_path: Path) -> Path:
-    return instance_path / "eagle_opcoes_v2.sqlite"
+    return instance_path / "system_opcoes_v2.sqlite"

@@ -19,7 +19,7 @@ def setup_logging(
     """Configura logging global e devolve o logger raiz."""
     global _initialized
     if _initialized:
-        return logging.getLogger("eagle")
+        return logging.getLogger("system")
 
     _initialized = True
 
@@ -60,9 +60,9 @@ def setup_logging(
     logging.getLogger("sqlite3").setLevel(logging.WARNING)
     logging.getLogger("flask").setLevel(logging.WARNING)
 
-    return logging.getLogger("eagle")
+    return logging.getLogger("system")
 
 
-def get_logger(name: str = "eagle") -> logging.Logger:
+def get_logger(name: str = "system") -> logging.Logger:
     """Obtém logger do módulo."""
     return logging.getLogger(name)

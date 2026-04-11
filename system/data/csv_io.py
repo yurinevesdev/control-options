@@ -11,7 +11,7 @@ import zipfile
 from datetime import datetime, timezone
 from typing import Any
 
-from eagle.db import Database
+from system.core.db import Database
 
 ESTRUTURAS_CSV = "estruturas.csv"
 LEGS_CSV = "legs.csv"
