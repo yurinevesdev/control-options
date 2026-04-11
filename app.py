@@ -385,6 +385,53 @@ def create_app() -> Flask:
 
     # ---- Rotas de atualização de preços ----
 
+    @app.route("/api/calcular-iv", methods=["POST"])
+    @rate_limit(max_calls=60, window=60)
+    def api_calcular_iv():
+        """API para calcular IV implícita e gregas a partir do prêmio."""
+        data = request.get_json(force=True, silent=True) or {}
+        try:
+            s0 = float(data.get("preco_atual") or 0)
+            k = float(data.get("strike") or 0)
+            premio = float(data.get("premio") or 0)
+            tipo = data.get("tipo") or "call"
+            venc = data.get("venc") or ""
+        except (TypeError, ValueError):
+            return jsonify({}), 400
+
+        if not s0 or not k or not premio or not venc:
+            return jsonify({})
+
+        try:
+            v = datetime.strptime(venc[:10], "%Y-%m-%d").replace(hour=23, minute=59, second=59)
+            hoje = datetime.now()
+            t = max(0.0, (v - hoje).total_seconds() / (365.0 * 24 * 3600))
+        except ValueError:
+            return jsonify({})
+
+        if t <= 0:
+            return jsonify({})
+
+        r = 0.1075
+
+        # Calcular IV implícita
+        iv = BS.implied_vol(tipo, s0, k, t, r, premio)
+        if iv is None:
+            return jsonify({})
+
+        sigma = iv
+        gks = BS.greeks(tipo, s0, k, t, r, sigma)
+        preco = BS.price(tipo, s0, k, t, r, sigma)
+
+        return jsonify({
+            "iv": iv * 100,  # Converter para percentual
+            "delta": gks.get("delta"),
+            "gamma": gks.get("gamma"),
+            "theta": gks.get("theta"),
+            "vega": gks.get("vega"),
+            "preco_bs": preco,
+        })
+
     @app.route("/api/estrutura/<int:eid>/atualizar-precos", methods=["POST"])
     @rate_limit(max_calls=10, window=60)
     def api_atualizar_precos(eid: int):

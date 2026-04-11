@@ -394,85 +394,108 @@
         <form method="post" action="{{ url_for('save_leg', eid=estrutura.id) }}" id="form-leg" novalidate>
             {% if edit_leg_id %}<input type="hidden" name="id" value="{{ edit_leg_id }}">{% endif %}
             <div class="modal-body">
-                <div class="form-row">
-                    <div class="form-group">
-                        <label class="form-label">Operação</label>
-                        <select name="operacao" id="leg-op">
-                            <option value="compra" {% if (leg_form.operacao or 'compra' )=='compra' %}selected{% endif
-                                %}>Compra (Long)</option>
-                            <option value="venda" {% if leg_form.operacao=='venda' %}selected{% endif %}>Venda (Short)
-                            </option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Tipo</label>
-                        <select name="tipo" id="leg-tipo">
-                            <option value="call" {% if (leg_form.tipo or 'call' )=='call' %}selected{% endif %}>CALL
-                            </option>
-                            <option value="put" {% if leg_form.tipo=='put' %}selected{% endif %}>PUT</option>
-                        </select>
+                <!-- 1. Operação -->
+                <div class="form-group">
+                    <label class="form-label">1 - Operação <span>*</span></label>
+                    <select name="operacao" id="leg-op" required>
+                        <option value="compra" {% if (leg_form.operacao or 'compra' )=='compra' %}selected{% endif %}>
+                            Compra (Long)</option>
+                        <option value="venda" {% if leg_form.operacao=='venda' %}selected{% endif %}>Venda (Short)
+                        </option>
+                    </select>
+                </div>
+
+                <!-- 2. Tipo -->
+                <div class="form-group">
+                    <label class="form-label">2 - Tipo <span>*</span></label>
+                    <select name="tipo" id="leg-tipo" required>
+                        <option value="call" {% if (leg_form.tipo or 'call' )=='call' %}selected{% endif %}>CALL
+                        </option>
+                        <option value="put" {% if leg_form.tipo=='put' %}selected{% endif %}>PUT</option>
+                    </select>
+                </div>
+
+                <!-- 3. Vencimento -->
+                <div class="form-group">
+                    <label class="form-label">3 - Vencimento</label>
+                    <select name="vencimento" id="leg-vencimento-select">
+                        <option value="">Carregando vencimentos...</option>
+                    </select>
+                    <div class="input-hint">Selecione o vencimento para ver os strikes disponíveis</div>
+                </div>
+
+                <!-- 4. Strike -->
+                <div class="form-group">
+                    <label class="form-label">4 - Strike (R$)</label>
+                    <select name="strike" id="leg-strike-select" disabled>
+                        <option value="">Selecione um vencimento primeiro</option>
+                    </select>
+                </div>
+
+                <!-- 5. Quantidade -->
+                <div class="form-group">
+                    <label class="form-label">5 - Quantidade <span>*</span></label>
+                    <input name="qtd" id="leg-qtd" type="number" step="1" min="1" required
+                        value="{{ leg_form.qtd or 100 }}">
+                </div>
+
+                <!-- 6. Prêmio -->
+                <div class="form-group">
+                    <label class="form-label">6 - Prêmio (R$) <span>*</span></label>
+                    <input name="premio" id="leg-premio" type="number" step="0.0001" min="0.0001" required
+                        placeholder="0.76" value="{{ leg_form.premio if leg_form.premio is not none else '' }}">
+                    <div class="input-hint">Preço da opção (último ou ask)</div>
+                </div>
+
+                <!-- Campos hidden para submissão -->
+                <input type="hidden" name="strike" id="leg-strike-hidden" value="{{ leg_form.strike or '' }}">
+                <input type="hidden" name="vencimento" id="leg-vencimento-hidden"
+                    value="{{ leg_form.vencimento or '' }}">
+                <input type="hidden" name="ticker" id="leg-ticker-hidden" value="{{ leg_form.ticker or '' }}">
+
+                <!-- Info da opção selecionada -->
+                <div id="opcao-info"
+                    style="display:none; background:var(--bg3); border:1px solid var(--border); border-radius:var(--r); padding:12px; margin-top:8px;">
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; font-size:12px;">
+                        <div><span style="color:var(--text3)">Símbolo:</span> <b id="opt-simbolo">—</b></div>
+                        <div><span style="color:var(--text3)">IV:</span> <b id="opt-iv" class="amber">—</b></div>
+                        <div><span style="color:var(--text3)">Delta:</span> <b id="opt-delta">—</b></div>
+                        <div><span style="color:var(--text3)">Moneyness:</span> <b id="opt-moneyness">—</b></div>
+                        <div><span style="color:var(--text3)">Bid:</span> <b id="opt-bid">—</b></div>
+                        <div><span style="color:var(--text3)">Ask:</span> <b id="opt-ask">—</b></div>
                     </div>
                 </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label class="form-label">Quantidade (contratos) <span>*</span></label>
-                        <input name="qtd" id="leg-qtd" type="number" step="1" min="1" required
-                            value="{{ leg_form.qtd or 100 }}">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Strike (R$) <span>*</span></label>
-                        <input name="strike" id="leg-strike" type="number" step="0.01" min="0.01" required
-                            placeholder="18.56" value="{{ leg_form.strike or '' }}">
-                    </div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label class="form-label">Ticker / Série</label>
-                        <input name="ticker" id="leg-ticker" placeholder="PETRD186" value="{{ leg_form.ticker or '' }}">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Vencimento</label>
-                        <input name="vencimento" id="leg-venc" type="date" value="{{ leg_form.vencimento or '' }}">
-                    </div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label class="form-label">Prêmio Pago/Recebido (R$) <span>*</span></label>
-                        <input name="premio" id="leg-premio" type="number" step="0.0001" min="0.0001" required
-                            placeholder="0.76" value="{{ leg_form.premio if leg_form.premio is not none else '' }}">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">IV — Volatilidade Implícita (%) <span class="iv-badge">Auto-calcula
-                                gregas ↓</span></label>
-                        <input name="iv" id="leg-iv" type="number" step="0.1" min="0.1" max="500" placeholder="30.5"
-                            value="{{ leg_form.iv if leg_form.iv is not none else '' }}">
-                        <div class="input-hint">Se souber o preço da opção, deixe vazio e preencha o prêmio</div>
-                    </div>
-                </div>
+
+                <!-- Gregas calculadas (readonly) -->
                 <div class="form-divider"></div>
-                <div class="form-section">Gregas Manuais (opcional — sobrescritos se IV informado)</div>
-                <div class="form-row">
+                <div class="form-section">Gregas (calculadas automaticamente)</div>
+                <div class="form-row-3">
                     <div class="form-group">
                         <label class="form-label">Delta (Δ)</label>
-                        <input name="delta" id="leg-delta" type="number" step="0.001" placeholder="-1 a +1"
+                        <input name="delta" id="leg-delta" type="number" step="0.0001" readonly
                             value="{{ leg_form.delta if leg_form.delta is not none else '' }}">
                     </div>
                     <div class="form-group">
                         <label class="form-label">Gamma (Γ)</label>
-                        <input name="gamma" id="leg-gamma" type="number" step="0.0001"
+                        <input name="gamma" id="leg-gamma" type="number" step="0.0001" readonly
                             value="{{ leg_form.gamma if leg_form.gamma is not none else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Theta (Θ)</label>
+                        <input name="theta" id="leg-theta" type="number" step="0.0001" readonly
+                            value="{{ leg_form.theta if leg_form.theta is not none else '' }}">
                     </div>
                 </div>
                 <div class="form-row">
                     <div class="form-group">
-                        <label class="form-label">Theta (Θ) por dia</label>
-                        <input name="theta" id="leg-theta" type="number" step="0.0001"
-                            value="{{ leg_form.theta if leg_form.theta is not none else '' }}">
+                        <label class="form-label">Vega (ν)</label>
+                        <input name="vega" id="leg-vega" type="number" step="0.0001" readonly
+                            value="{{ leg_form.vega if leg_form.vega is not none else '' }}">
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Vega (ν) por 1%</label>
-                        <input name="vega" id="leg-vega" type="number" step="0.0001"
-                            value="{{ leg_form.vega if leg_form.vega is not none else '' }}">
+                        <label class="form-label">IV (%)</label>
+                        <input name="iv" id="leg-iv" type="number" step="0.1" readonly
+                            value="{{ leg_form.iv if leg_form.iv is not none else '' }}">
                     </div>
                 </div>
             </div>
@@ -490,27 +513,194 @@
 {% block scripts %}
 {% if estrutura %}
 <script>
+    const ESTRUTURA_ATIVO = {{ estrutura.ativo | tojson }};
     const ESTRUTURA_PRECO = {{ estrutura.precoAtual | tojson }};
-    document.getElementById('leg-iv') && document.getElementById('leg-iv').addEventListener('input', function () {
+    const ESTRUTURA_DATA_VENC = {{ estrutura.dataVenc | tojson }};
+
+    // Dados de opções do OpLab (carregados do DB)
+    let opcoesData = {};
+    let vencimentos = [];
+
+    // Carregar dados de opções do OpLab
+    function carregarOpcoes() {
+        const ativo = ESTRUTURA_ATIVO;
+        if (!ativo) return;
+
+        fetch('/api/opcoes/series/' + ativo)
+            .then(r => r.json())
+            .then(data => {
+                if (data.series) {
+                    opcoesData = data.series;
+                    preencherVencimentos();
+                }
+            })
+            .catch(function () {
+                console.log('Não foi possível carregar opções do OpLab');
+                document.getElementById('leg-vencimento-select').innerHTML = '<option value="">Sem dados do OpLab</option>';
+            });
+    }
+
+    // Preencher dropdown de vencimentos
+    function preencherVencimentos() {
+        const select = document.getElementById('leg-vencimento-select');
+        vencimentos = Object.keys(opcoesData).sort();
+
+        if (vencimentos.length === 0) {
+            select.innerHTML = '<option value="">Nenhum vencimento disponível</option>';
+            return;
+        }
+
+        let html = '<option value="">Selecione o vencimento...</option>';
+        vencimentos.forEach(function (venc) {
+            const serie = opcoesData[venc];
+            const dias = serie.dias_vencimento || 0;
+            const dataFormatada = formatarData(venc);
+            const selected = ESTRUTURA_DATA_VENC && venc.startsWith(ESTRUTURA_DATA_VENC.substring(0, 7)) ? 'selected' : '';
+            html += '<option value="' + venc + '" ' + selected + '>' + dataFormatada + ' (' + dias + 'd)</option>';
+        });
+        select.innerHTML = html;
+    }
+
+    // Formatar data YYYY-MM-DD para DD/MM/YYYY
+    function formatarData(dateStr) {
+        if (!dateStr) return '';
+        const parts = dateStr.split('-');
+        if (parts.length === 3) {
+            return parts[2] + '/' + parts[1] + '/' + parts[0];
+        }
+        return dateStr;
+    }
+
+    // Ao selecionar vencimento, carregar strikes
+    document.getElementById('leg-vencimento-select').addEventListener('change', function () {
+        const venc = this.value;
+        const strikeSelect = document.getElementById('leg-strike-select');
+
+        if (!venc || !opcoesData[venc]) {
+            strikeSelect.innerHTML = '<option value="">Selecione um vencimento primeiro</option>';
+            strikeSelect.disabled = true;
+            return;
+        }
+
+        const serie = opcoesData[venc];
+        const tipoSelecionado = document.getElementById('leg-tipo').value;
+
+        // Filtrar opções pelo tipo
+        const opcoes = serie.opcoes.filter(function (opt) {
+            return opt.tipo.toLowerCase() === tipoSelecionado.toLowerCase();
+        });
+
+        // Ordenar por strike
+        opcoes.sort(function (a, b) { return a.strike - b.strike; });
+
+        let html = '<option value="">Selecione o strike...</option>';
+        opcoes.forEach(function (opt) {
+            const moneyness = opt.moneyness || '';
+            const vi = opt.vi ? opt.vi.toFixed(1) + '%' : '';
+            const ask = opt.ask ? 'R$ ' + opt.ask.toFixed(4) : '';
+            html += '<option value="' + opt.strike + '" data-ticker="' + opt.simbolo + '" data-iv="' + (opt.vi || '') + '" data-delta="' + (opt.delta || '') + '" data-moneyness="' + moneyness + '" data-bid="' + (opt.bid || '') + '" data-ask="' + (opt.ask || '') + '">' +
+                'R$ ' + opt.strike.toFixed(2) + ' ' + moneyness + (vi ? ' | IV: ' + vi : '') + '</option>';
+        });
+        strikeSelect.innerHTML = html;
+        strikeSelect.disabled = false;
+    });
+
+    // Ao selecionar strike, preencher info e calcular gregas
+    document.getElementById('leg-strike-select').addEventListener('change', function () {
+        const option = this.options[this.selectedIndex];
+        if (!option.value) {
+            document.getElementById('opcao-info').style.display = 'none';
+            return;
+        }
+
+        const ticker = option.dataset.ticker;
+        const iv = parseFloat(option.dataset.iv) || 0;
+        const delta = parseFloat(option.dataset.delta) || 0;
+        const moneyness = option.dataset.moneyness;
+        const bid = parseFloat(option.dataset.bid) || 0;
+        const ask = parseFloat(option.dataset.ask) || 0;
+        const strike = parseFloat(option.value);
+
+        // Preencher campos hidden
+        document.getElementById('leg-strike-hidden').value = strike;
+        document.getElementById('leg-vencimento-hidden').value = document.getElementById('leg-vencimento-select').value;
+        document.getElementById('leg-ticker-hidden').value = ticker;
+
+        // Sugerir prêmio (ask)
+        if (ask > 0 && !document.getElementById('leg-premio').value) {
+            document.getElementById('leg-premio').value = ask.toFixed(4);
+        }
+
+        // Mostrar info da opção
+        document.getElementById('opt-simbolo').textContent = ticker;
+        document.getElementById('opt-iv').textContent = iv ? iv.toFixed(1) + '%' : '—';
+        document.getElementById('opt-delta').textContent = delta ? delta.toFixed(4) : '—';
+        document.getElementById('opt-moneyness').textContent = moneyness || '—';
+        document.getElementById('opt-bid').textContent = bid ? 'R$ ' + bid.toFixed(4) : '—';
+        document.getElementById('opt-ask').textContent = ask ? 'R$ ' + ask.toFixed(4) : '—';
+        document.getElementById('opcao-info').style.display = 'block';
+
+        // Calcular gregas se temos IV
+        if (iv > 0) {
+            calcularGregas(strike, iv);
+        }
+    });
+
+    // Calcular gregas via API
+    function calcularGregas(strike, iv) {
         const S0 = parseFloat(ESTRUTURA_PRECO) || 0;
-        const K = parseFloat(document.getElementById('leg-strike').value) || 0;
-        const iv = parseFloat(document.getElementById('leg-iv').value) || 0;
         const tipo = document.getElementById('leg-tipo').value;
-        const venc = document.getElementById('leg-venc').value;
-        if (!S0 || !K || !iv || !venc) return;
+        const venc = document.getElementById('leg-vencimento-select').value;
+
+        if (!S0 || !strike || !iv || !venc) return;
+
         fetch('{{ url_for("preview_greeks") }}', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ preco_atual: S0, strike: K, iv: iv, tipo: tipo, venc: venc })
+            body: JSON.stringify({ preco_atual: S0, strike: strike, iv: iv, tipo: tipo, venc: venc })
         }).then(r => r.json()).then(d => {
             if (d.delta == null) return;
             document.getElementById('leg-delta').value = Number(d.delta).toFixed(4);
             document.getElementById('leg-gamma').value = Number(d.gamma).toFixed(6);
             document.getElementById('leg-theta').value = Number(d.theta).toFixed(6);
             document.getElementById('leg-vega').value = Number(d.vega).toFixed(6);
-            const prem = document.getElementById('leg-premio');
-            if (prem && !prem.value && d.preco_sugerido != null) prem.value = Number(d.preco_sugerido).toFixed(4);
+            document.getElementById('leg-iv').value = iv.toFixed(1);
         }).catch(function () { });
+    }
+
+    // Recalcular gregas quando mudar tipo ou prêmio
+    document.getElementById('leg-tipo').addEventListener('change', function () {
+        const strikeSelect = document.getElementById('leg-strike-select');
+        if (strikeSelect.value) {
+            strikeSelect.dispatchEvent(new Event('change'));
+        }
+    });
+
+    // Calcular gregas quando mudar prêmio manualmente
+    document.getElementById('leg-premio').addEventListener('blur', function () {
+        const premio = parseFloat(this.value) || 0;
+        const strike = parseFloat(document.getElementById('leg-strike-hidden').value) || 0;
+        const S0 = parseFloat(ESTRUTURA_PRECO) || 0;
+        const tipo = document.getElementById('leg-tipo').value;
+        const venc = document.getElementById('leg-vencimento-select').value;
+
+        // Se tem vencimento, tentar calcular IV implícita
+        if (premio > 0 && strike > 0 && S0 > 0 && venc) {
+            // Usar API para calcular IV implícita
+            fetch('/api/calcular-iv', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ preco_atual: S0, strike: strike, premio: premio, tipo: tipo, venc: venc })
+            }).then(r => r.json()).then(d => {
+                if (d.iv) {
+                    document.getElementById('leg-iv').value = Number(d.iv).toFixed(1);
+                    document.getElementById('leg-delta').value = Number(d.delta || 0).toFixed(4);
+                    document.getElementById('leg-gamma').value = Number(d.gamma || 0).toFixed(6);
+                    document.getElementById('leg-theta').value = Number(d.theta || 0).toFixed(6);
+                    document.getElementById('leg-vega').value = Number(d.vega || 0).toFixed(6);
+                }
+            }).catch(function () { });
+        }
     });
 
     // Função para atualizar preços via AJAX
@@ -518,7 +708,6 @@
         const btn = document.getElementById('btn-atualizar-precos');
         if (!btn || btn.classList.contains('loading')) return;
 
-        // Mostrar loading
         btn.classList.add('loading');
         btn.textContent = 'Atualizando...';
 
@@ -535,20 +724,18 @@
                     return;
                 }
 
-                // Mostrar resultado
-                let msg = 'Atualização concluída!\\n\\n';
+                let msg = 'Atualização concluída!\n\n';
                 msg += 'Ativo: ' + (dados.ativo_atualizado ? '✓ Atualizado' : '✗ Falha');
                 if (dados.preco_ativo) msg += ' (R$ ' + dados.preco_ativo.toFixed(2) + ')';
-                msg += '\\n';
+                msg += '\n';
                 msg += 'Opções: ' + dados.opcoes_atualizadas + ' atualizada(s)';
 
                 if (dados.erros && dados.erros.length > 0) {
-                    msg += '\\n\\nErros:\\n' + dados.erros.join('\\n');
+                    msg += '\n\nErros:\n' + dados.erros.join('\n');
                 }
 
                 alert(msg);
 
-                // Recarregar página para ver os novos preços
                 if (dados.ativo_atualizado || dados.opcoes_atualizadas > 0) {
                     window.location.reload();
                 }
@@ -558,6 +745,11 @@
                 alert('Erro ao atualizar preços. Tente novamente.');
                 console.error('Erro:', err);
             });
+    }
+
+    // Carregar opções ao abrir modal
+    if (document.getElementById('modal-leg')) {
+        carregarOpcoes();
     }
 </script>
 {% endif %}
