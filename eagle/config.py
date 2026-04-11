@@ -9,6 +9,17 @@ import secrets
 from pathlib import Path
 from typing import Any
 
+try:
+    from dotenv import load_dotenv
+except ImportError:
+    load_dotenv = None
+
+ROOT_DIR = Path(__file__).resolve().parent.parent
+DOTENV_PATH = ROOT_DIR / ".env"
+
+if load_dotenv is not None:
+    load_dotenv(dotenv_path=DOTENV_PATH)
+
 # ============================================================================
 # Black-Scholes
 # ============================================================================
@@ -103,3 +114,23 @@ ESTRATEGIAS: dict[str, dict[str, Any]] = {
 }
 
 ESTRATEGIAS_LIST = ["Personalizada"] + list(ESTRATEGIAS.keys())
+
+# ============================================================================
+# Notificações por E-mail
+# ============================================================================
+
+# Configurações SMTP (Gmail)
+SMTP_SERVER: str = os.environ.get("EAGLE_SMTP_SERVER", "smtp.gmail.com")
+SMTP_PORT: int = int(os.environ.get("EAGLE_SMTP_PORT", "587"))
+FROM_EMAIL: str = os.environ.get("EAGLE_FROM_EMAIL", "yurineves1934@gmail.com")
+EMAIL_PASSWORD: str = os.environ.get("EAGLE_EMAIL_PASSWORD", "")  # App password do Gmail
+TO_EMAIL: str = os.environ.get("EAGLE_TO_EMAIL", "yurineves1934@gmail.com")
+
+# Alerta: quantos dias antes do vencimento enviar notificação
+DIAS_ALERTA: int = int(os.environ.get("EAGLE_DIAS_ALERTA", "2"))
+
+# Background scheduler: hora para disparar verificação diária (formato 24h: "09:00")
+SCHEDULER_HORA: str = os.environ.get("EAGLE_SCHEDULER_HORA", "09:00")
+
+# Ativar notificações por e-mail
+EMAIL_NOTIFICACOES_ATIVAS: bool = os.environ.get("EAGLE_EMAIL_NOTIF", "1").lower() in ("1", "true", "yes")

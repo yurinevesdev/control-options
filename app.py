@@ -49,6 +49,7 @@ from eagle.opcoes_scraper import (
 )
 from eagle.sugestoes import analisar_sugestoes
 from eagle.precos import atualizar_precos_estrutura, atualizar_todas_estruturas_em_andamento
+from eagle.scheduler import iniciar_scheduler, parar_scheduler
 
 # -------------------------------------------------------------------------
 # Setup
@@ -865,6 +866,27 @@ def create_app() -> Flask:
         except Exception as e:
             log.error("Erro ao analisar sugestões para %s: %s", ticker, e)
             return jsonify({"error": f"Erro interno: {str(e)}"}), 500
+
+    # ---- Inicializar scheduler de notificações ----
+    @app.shell_context_processor
+    def make_shell_context():
+        return {"db": db}
+    
+    try:
+        iniciar_scheduler()
+        log.info("✓ Scheduler de notificações iniciado")
+    except Exception as e:
+        log.warning("⚠ Scheduler de notificações não iniciado: %s", e)
+    
+    # Registrar shutdown handler
+    def shutdown_handler():
+        try:
+            parar_scheduler()
+            log.info("✓ Scheduler de notificações parado")
+        except Exception as e:
+            log.warning("⚠ Erro ao parar scheduler: %s", e)
+    
+    app.teardown_appcontext(lambda exc: shutdown_handler() if exc is None else None)
 
     return app
 
