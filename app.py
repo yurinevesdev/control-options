@@ -190,27 +190,39 @@ def create_app() -> Flask:
     def _log_request():
         """Loga todas as requisições recebidas."""
         log.info(f"{request.method} {request.path} | IP: {request.remote_addr}")
+        # Marcar hora de início para detectar timeouts
+        request.start_time = time.time()
 
     @app.after_request
     def _log_response(response):
         """Loga status da resposta."""
+        elapsed = time.time() - request.start_time if hasattr(request, 'start_time') else 0
         status_code = response.status_code
         level = logging.WARNING if status_code >= 400 else logging.INFO
-        log.log(level, f"{request.method} {request.path} → {status_code}")
+        time_msg = f" (⏱ {elapsed:.2f}s)"
+        if elapsed > 5:
+            level = logging.WARNING  # Avisar se demorOU mais de 5s
+        log.log(level, f"{request.method} {request.path} → {status_code}{time_msg}")
         return response
 
     # ---- DB lifecycle ----
     @app.before_request
     def _ensure_db():
-        db.connect()
+        try:
+            db.connect()
+            log.debug(f"✓ DB conectado")
+        except Exception as e:
+            log.error(f"✗ Erro ao conectar DB: {e}", exc_info=True)
+            raise
 
     @app.teardown_request
     def _close_db(exc):
         if hasattr(db, "_conn") and db._conn is not None:
             try:
                 db._conn.close()
-            except Exception:
-                pass
+                log.debug(f"✓ DB desconectado")
+            except Exception as e:
+                log.warning(f"⚠ Erro ao desconectar DB: {e}")
             db._conn = None
 
     # ---- Error handlers ----
