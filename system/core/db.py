@@ -121,10 +121,6 @@ class Database:
 
     def _init_schema(self) -> None:
         c = self._conn
-        assert c is not None
-
-        import logging
-        log = logging.getLogger(__name__)
 
         # Criar tabela base sem status (para compatibilidade)
         c.execute(
