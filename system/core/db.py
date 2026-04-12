@@ -59,6 +59,32 @@ def _row_leg(row: sqlite3.Row) -> dict[str, Any]:
     }
 
 
+def _row_carteira(row: sqlite3.Row) -> dict[str, Any]:
+    return {
+        "id": row["id"],
+        "nome": row["nome"],
+        "descricao": row["descricao"],
+        "dataInicio": row["data_inicio"],
+        "criadoEm": row["criado_em"],
+        "atualizadoEm": row["atualizado_em"],
+    }
+
+
+def _row_ativo_carteira(row: sqlite3.Row) -> dict[str, Any]:
+    return {
+        "id": row["id"],
+        "carteiraId": row["carteira_id"],
+        "ticker": row["ticker"],
+        "quantidade": row["quantidade"],
+        "precoMedio": row["preco_medio"],
+        "alocacaoIdeal": row["alocacao_ideal"],
+        "precoAtual": row["preco_atual"],
+        "atualizadoEmPreco": row["atualizado_em_preco"],
+        "criadoEm": row["criado_em"],
+        "atualizadoEm": row["atualizado_em"],
+    }
+
+
 class Database:
     def __init__(self, path: Path | str):
         self.path = Path(path)
@@ -77,7 +103,7 @@ class Database:
     def _init_schema(self) -> None:
         c = self._conn
         assert c is not None
-        
+
         # Criar tabela base sem status (para compatibilidade)
         c.execute(
             """
@@ -94,13 +120,13 @@ class Database:
             )
             """
         )
-        
+
         # Índices básicos
         c.execute("CREATE INDEX IF NOT EXISTS idx_est_criado ON estruturas(criado_em)")
         c.execute("CREATE INDEX IF NOT EXISTS idx_est_tipo ON estruturas(tipo)")
         c.execute("CREATE INDEX IF NOT EXISTS idx_est_ativo ON estruturas(ativo)")
         c.execute("CREATE INDEX IF NOT EXISTS idx_est_venc ON estruturas(data_venc)")
-        
+
         # Tabela legs
         c.execute(
             """
@@ -127,23 +153,57 @@ class Database:
         c.execute("CREATE INDEX IF NOT EXISTS idx_legs_strike ON legs(strike)")
         c.execute("CREATE INDEX IF NOT EXISTS idx_legs_venc ON legs(vencimento)")
         c.execute("CREATE INDEX IF NOT EXISTS idx_legs_ticker ON legs(ticker)")
-        
-        c.commit()
-        
+
+        # Tabela carteiras
+        c.execute(
+            """
+            CREATE TABLE IF NOT EXISTS carteiras (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                nome TEXT NOT NULL,
+                descricao TEXT,
+                data_inicio TEXT,
+                criado_em TEXT,
+                atualizado_em TEXT
+            )
+            """
+        )
+        c.execute("CREATE INDEX IF NOT EXISTS idx_cart_criado ON carteiras(criado_em)")
+
+        # Tabela ativos_carteira
+        c.execute(
+            """
+            CREATE TABLE IF NOT EXISTS ativos_carteira (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                carteira_id INTEGER NOT NULL REFERENCES carteiras(id) ON DELETE CASCADE,
+                ticker TEXT NOT NULL,
+                quantidade REAL NOT NULL,
+                preco_medio REAL NOT NULL,
+                alocacao_ideal REAL NOT NULL,
+                preco_atual REAL,
+                atualizado_em_preco TEXT,
+                criado_em TEXT,
+                atualizado_em TEXT
+            )
+            """
+        )
+        c.execute("CREATE INDEX IF NOT EXISTS idx_ativo_carteira ON ativos_carteira(carteira_id)")
+        c.execute("CREATE INDEX IF NOT EXISTS idx_ativo_ticker ON ativos_carteira(ticker)")
+
         # Migração: adicionar coluna status se não existir (bancos antigos)
         try:
             c.execute("ALTER TABLE estruturas ADD COLUMN status TEXT DEFAULT 'em_andamento'")
-            c.commit()
             log.info("Coluna 'status' adicionada à tabela estruturas")
         except Exception:
             pass  # Coluna já existe
-        
+
         # Índice de status (só após coluna existir)
         try:
             c.execute("CREATE INDEX IF NOT EXISTS idx_est_status ON estruturas(status)")
-            c.commit()
         except Exception:
             pass
+
+        # Commit final
+        c.commit()
 
     def backup(self, dest_path: Path | str) -> Path:
         """Cria backup da base de dados."""
@@ -322,6 +382,153 @@ class Database:
         )
         return [_row_leg(r) for r in cur.fetchall()]
 
+    # ==================== Carteira Methods ====================
+
+    def save_carteira(self, obj: dict[str, Any], *, autocommit: bool = True) -> int:
+        """Criar/editar carteira"""
+        conn = self.connect()
+        if not obj.get("criadoEm"):
+            obj["criadoEm"] = _now_iso()
+        obj["atualizadoEm"] = _now_iso()
+
+        oid = obj.get("id")
+        if oid:
+            conn.execute(
+                """UPDATE carteiras SET nome=?, descricao=?, data_inicio=?, criado_em=?, atualizado_em=?
+                   WHERE id=?""",
+                (
+                    obj.get("nome"),
+                    obj.get("descricao"),
+                    obj.get("dataInicio"),
+                    obj.get("criadoEm"),
+                    obj.get("atualizadoEm"),
+                    oid,
+                ),
+            )
+            if autocommit:
+                conn.commit()
+            return int(oid)
+
+        cur = conn.execute(
+            """INSERT INTO carteiras (nome, descricao, data_inicio, criado_em, atualizado_em)
+               VALUES (?,?,?,?,?)""",
+            (
+                obj.get("nome"),
+                obj.get("descricao"),
+                obj.get("dataInicio"),
+                obj.get("criadoEm"),
+                obj.get("atualizadoEm"),
+            ),
+        )
+        if autocommit:
+            conn.commit()
+        return int(cur.lastrowid)
+
+    def get_carteira(self, cart_id: int) -> Optional[dict[str, Any]]:
+        """Obter carteira por ID"""
+        conn = self.connect()
+        cur = conn.execute("SELECT * FROM carteiras WHERE id = ?", (cart_id,))
+        row = cur.fetchone()
+        if row is None:
+            return None
+        return _row_carteira(row)
+
+    def get_carteiras(self) -> list[dict[str, Any]]:
+        """Obter todas as carteiras"""
+        conn = self.connect()
+        cur = conn.execute("SELECT * FROM carteiras ORDER BY id DESC")
+        return [_row_carteira(r) for r in cur.fetchall()]
+
+    def delete_carteira(self, cart_id: int) -> None:
+        """Deletar carteira (e todos os ativos associados via CASCADE)"""
+        conn = self.connect()
+        conn.execute("DELETE FROM ativos_carteira WHERE carteira_id = ?", (cart_id,))
+        conn.execute("DELETE FROM carteiras WHERE id = ?", (cart_id,))
+        conn.commit()
+
+    # ==================== Ativo Carteira Methods ====================
+
+    def save_ativo_carteira(self, obj: dict[str, Any], *, autocommit: bool = True) -> int:
+        """Criar/editar ativo na carteira"""
+        conn = self.connect()
+        if not obj.get("criadoEm"):
+            obj["criadoEm"] = _now_iso()
+        obj["atualizadoEm"] = _now_iso()
+        obj["atualizadoEmPreco"] = _now_iso()
+
+        oid = obj.get("id")
+        if oid:
+            conn.execute(
+                """UPDATE ativos_carteira SET carteira_id=?, ticker=?, quantidade=?, preco_medio=?,
+                   alocacao_ideal=?, preco_atual=?, atualizado_em_preco=?, criado_em=?, atualizado_em=?
+                   WHERE id=?""",
+                (
+                    obj.get("carteiraId"),
+                    obj.get("ticker"),
+                    obj.get("quantidade"),
+                    obj.get("precoMedio"),
+                    obj.get("alocacaoIdeal"),
+                    obj.get("precoAtual"),
+                    obj.get("atualizadoEmPreco"),
+                    obj.get("criadoEm"),
+                    obj.get("atualizadoEm"),
+                    oid,
+                ),
+            )
+            if autocommit:
+                conn.commit()
+            return int(oid)
+
+        cur = conn.execute(
+            """INSERT INTO ativos_carteira (carteira_id, ticker, quantidade, preco_medio,
+               alocacao_ideal, preco_atual, atualizado_em_preco, criado_em, atualizado_em)
+               VALUES (?,?,?,?,?,?,?,?,?)""",
+            (
+                obj.get("carteiraId"),
+                obj.get("ticker"),
+                obj.get("quantidade"),
+                obj.get("precoMedio"),
+                obj.get("alocacaoIdeal"),
+                obj.get("precoAtual"),
+                obj.get("atualizadoEmPreco"),
+                obj.get("criadoEm"),
+                obj.get("atualizadoEm"),
+            ),
+        )
+        if autocommit:
+            conn.commit()
+        return int(cur.lastrowid)
+
+    def get_ativo_carteira(self, ativo_id: int) -> Optional[dict[str, Any]]:
+        """Obter ativo da carteira por ID"""
+        conn = self.connect()
+        cur = conn.execute("SELECT * FROM ativos_carteira WHERE id = ?", (ativo_id,))
+        row = cur.fetchone()
+        if row is None:
+            return None
+        return _row_ativo_carteira(row)
+
+    def get_ativos_carteira(self, cart_id: int) -> list[dict[str, Any]]:
+        """Obter todos os ativos de uma carteira"""
+        conn = self.connect()
+        cur = conn.execute("SELECT * FROM ativos_carteira WHERE carteira_id = ? ORDER BY id", (cart_id,))
+        return [_row_ativo_carteira(r) for r in cur.fetchall()]
+
+    def delete_ativo_carteira(self, ativo_id: int) -> None:
+        """Deletar ativo da carteira"""
+        conn = self.connect()
+        conn.execute("DELETE FROM ativos_carteira WHERE id = ?", (ativo_id,))
+        conn.commit()
+
+    def atualizar_preco_ativo(self, ativo_id: int, preco: float) -> None:
+        """Atualizar preço de um ativo"""
+        conn = self.connect()
+        conn.execute(
+            "UPDATE ativos_carteira SET preco_atual = ?, atualizado_em_preco = ? WHERE id = ?",
+            (preco, _now_iso(), ativo_id),
+        )
+        conn.commit()
+
     def stats(self) -> dict[str, Any]:
         """Estatísticas rápidas da base de dados."""
         conn = self.connect()
@@ -329,7 +536,17 @@ class Database:
         n_est = cur.fetchone()["cnt"]
         cur = conn.execute("SELECT COUNT(*) as cnt FROM legs")
         n_legs = cur.fetchone()["cnt"]
-        return {"estruturas": n_est, "pernas": n_legs, "db_size_mb": round(self.path.stat().st_size / (1024 * 1024), 2)}
+        cur = conn.execute("SELECT COUNT(*) as cnt FROM carteiras")
+        n_cart = cur.fetchone()["cnt"]
+        cur = conn.execute("SELECT COUNT(*) as cnt FROM ativos_carteira")
+        n_ativos_cart = cur.fetchone()["cnt"]
+        return {
+            "estruturas": n_est,
+            "pernas": n_legs,
+            "carteiras": n_cart,
+            "ativos_carteira": n_ativos_cart,
+            "db_size_mb": round(self.path.stat().st_size / (1024 * 1024), 2),
+        }
 
 
 def get_db_path(instance_path: Path) -> Path:

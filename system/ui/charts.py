@@ -228,3 +228,68 @@ def dashboard_bar(est_names: list[str], est_premios: list[float], include_plotly
         include_plotlyjs=include_plotlyjs,
         config={"responsive": True},
     )
+
+
+def plotly_carteira_alocacao(ativos: list[dict], include_plotlyjs: bool | str = False) -> str:
+    """
+    Gráfico de alocação da carteira: Ideal vs Real em barras lado a lado.
+    """
+    from system.portfolio.metrics import calcular_alocacao_real, calcular_valor_atual
+
+    if not ativos:
+        return ""
+
+    # Calcular valor total
+    total_atual = sum(calcular_valor_atual(a) for a in ativos)
+
+    tickers = []
+    alocacoes_ideais = []
+    alocacoes_reais = []
+
+    for ativo in ativos:
+        ticker = ativo.get("ticker", "UNKNOWN")
+        ideal = float(ativo.get("alocacaoIdeal") or 0)
+        real = calcular_alocacao_real(ativo, total_atual) if total_atual > 0 else 0
+
+        tickers.append(ticker)
+        alocacoes_ideais.append(ideal)
+        alocacoes_reais.append(real)
+
+    fig = go.Figure(
+        data=[
+            go.Bar(
+                name="Ideal",
+                x=tickers,
+                y=alocacoes_ideais,
+                marker_color="rgba(96,165,250,0.6)",  # Blue
+            ),
+            go.Bar(
+                name="Real",
+                x=tickers,
+                y=alocacoes_reais,
+                marker_color="rgba(74,222,128,0.6)",  # Green
+            ),
+        ]
+    )
+
+    fig.update_layout(
+        barmode="group",
+        paper_bgcolor=COLORS["bg"],
+        plot_bgcolor=COLORS["bg"],
+        font=dict(color="#8b90a0", size=10),
+        margin=dict(l=50, r=20, t=10, b=80),
+        xaxis=dict(gridcolor="rgba(255,255,255,0.05)", tickangle=-25),
+        yaxis=dict(
+            gridcolor="rgba(255,255,255,0.05)",
+            ticksuffix="%",
+        ),
+        showlegend=True,
+        legend=dict(font=dict(size=10)),
+        height=280,
+    )
+
+    return fig.to_html(
+        full_html=False,
+        include_plotlyjs=include_plotlyjs,
+        config={"responsive": True},
+    )

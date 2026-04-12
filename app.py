@@ -33,7 +33,7 @@ from flask import (
 )
 
 from system.core import blackscholes as BS
-from system.ui.charts import dashboard_doughnut, dashboard_bar, payoff_figure
+from system.ui.charts import dashboard_doughnut, dashboard_bar, payoff_figure, plotly_carteira_alocacao
 from system.config import DEBUG, HOST, PORT, SECRET_KEY, ESTRATEGIAS_LIST, DB_PATH
 from system.data.csv_io import export_zip_bytes, import_merge_zip, zip_from_csv_parts
 from system.core.db import Database
@@ -862,10 +862,235 @@ def create_app() -> Flask:
             )
             
             return jsonify(resultado)
-            
+
         except Exception as e:
             log.error("Erro ao analisar sugestões para %s: %s", ticker, e)
             return jsonify({"error": f"Erro interno: {str(e)}"}), 500
+
+    # ========================================================================
+    # ROTAS DE CARTEIRA DE INVESTIMENTOS
+    # ========================================================================
+
+    @app.route("/carteira")
+    def carteira_page():
+        """Página principal de carteiras"""
+        from system.portfolio.metrics import calcular_metricas_carteira, validar_alocacoes
+
+        carteiras = db.get_carteiras()
+        carteira_id = request.args.get("id")
+        carteira_selecionada = None
+        ativos = []
+        metricas = None
+        validacao_alocacoes = (True, "")
+        chart_alocacao = None
+
+        if carteira_id:
+            try:
+                carteira_selecionada = db.get_carteira(int(carteira_id))
+                if carteira_selecionada:
+                    ativos = db.get_ativos_carteira(int(carteira_id))
+                    metricas = calcular_metricas_carteira(ativos)
+                    validacao_alocacoes = validar_alocacoes(ativos)
+
+                    # Gerar gráfico se tem ativos
+                    if ativos:
+                        chart_alocacao = plotly_carteira_alocacao(ativos)
+            except (ValueError, TypeError):
+                pass
+
+        return render_template(
+            "carteira.html",
+            carteiras=carteiras,
+            carteira_selecionada=carteira_selecionada,
+            ativos=ativos,
+            metricas=metricas,
+            validacao_alocacoes=validacao_alocacoes,
+            chart_alocacao=chart_alocacao,
+            brl=brl,
+            color_pnl=color_pnl,
+        )
+
+    @app.route("/api/carteira/salvar", methods=["POST"])
+    def api_salvar_carteira():
+        """Criar/editar carteira"""
+        data = request.get_json(force=True, silent=True) or {}
+        try:
+            obj = {
+                "nome": (data.get("nome") or "").strip(),
+                "descricao": (data.get("descricao") or "").strip(),
+            }
+
+            if not obj["nome"]:
+                return jsonify({"success": False, "error": "Nome da carteira é obrigatório"}), 400
+
+            if data.get("id"):
+                try:
+                    obj["id"] = int(data["id"])
+                except (ValueError, TypeError):
+                    pass
+
+            cid = db.save_carteira(obj, autocommit=True)
+            log.info("Carteira salva: id=%s, nome=%s", cid, obj["nome"])
+            return jsonify({"success": True, "id": cid, "message": "Carteira salva com sucesso"})
+        except Exception as e:
+            log.error("Erro ao salvar carteira: %s", e)
+            return jsonify({"success": False, "error": str(e)}), 400
+
+    @app.route("/api/carteira/<int:cid>/deletar", methods=["POST"])
+    def api_deletar_carteira(cid):
+        """Deletar carteira (e todos os ativos)"""
+        try:
+            db.delete_carteira(cid)
+            log.info("Carteira deletada: id=%s", cid)
+            return jsonify({"success": True, "message": "Carteira deletada com sucesso"})
+        except Exception as e:
+            log.error("Erro ao deletar carteira %s: %s", cid, e)
+            return jsonify({"success": False, "error": str(e)}), 400
+
+    @app.route("/api/carteira/<int:cid>/ativo/salvar", methods=["POST"])
+    def api_salvar_ativo_carteira(cid):
+        """Criar/editar ativo na carteira"""
+        from system.data.precos import obter_preco_ativo_yahoo
+        from system.portfolio.metrics import validar_alocacoes
+
+        data = request.get_json(force=True, silent=True) or {}
+        try:
+            ticker = (data.get("ticker") or "").strip().upper()
+            if not ticker:
+                return jsonify({"success": False, "error": "Ticker é obrigatório"}), 400
+
+            try:
+                alocacao_ideal = float(data.get("alocacaoIdeal") or 0)
+                if alocacao_ideal < 0 or alocacao_ideal > 100:
+                    return jsonify({
+                        "success": False,
+                        "error": "Alocação ideal deve estar entre 0 e 100%"
+                    }), 400
+            except (ValueError, TypeError):
+                return jsonify({
+                    "success": False,
+                    "error": "Alocação ideal inválida"
+                }), 400
+
+            # Validar soma de alocações ideais
+            ativos_existentes = db.get_ativos_carteira(cid)
+            soma_ideal = sum(float(a.get("alocacaoIdeal") or 0) for a in ativos_existentes
+                           if str(a.get("id")) != str(data.get("id")))
+            soma_ideal += alocacao_ideal
+
+            # Permitir até 100% (pode ser incompleto ou completamente alocado)
+            if soma_ideal > 100.01:  # tolerância de 0.01% acima
+                return jsonify({
+                    "success": False,
+                    "error": f"Soma de alocações ideais ultrapassa 100% (seria: {soma_ideal:.2f}%)"
+                }), 400
+
+            # Obter preço atual do Yahoo Finance
+            preco_atual = obter_preco_ativo_yahoo(ticker)
+            if not preco_atual:
+                log.warning("Não foi possível obter preço para %s", ticker)
+                # Permitir salvar mesmo sem preço (pode estar indisponível)
+                # preco_atual = None
+
+            try:
+                quantidade = float(data.get("quantidade") or 0)
+                preco_medio = float(data.get("precoMedio") or 0)
+            except (ValueError, TypeError):
+                return jsonify({
+                    "success": False,
+                    "error": "Quantidade e preço médio devem ser numéricos"
+                }), 400
+
+            obj = {
+                "carteiraId": cid,
+                "ticker": ticker,
+                "quantidade": quantidade,
+                "precoMedio": preco_medio,
+                "alocacaoIdeal": alocacao_ideal,
+                "precoAtual": preco_atual,
+            }
+
+            if data.get("id"):
+                try:
+                    obj["id"] = int(data["id"])
+                except (ValueError, TypeError):
+                    pass
+
+            aid = db.save_ativo_carteira(obj, autocommit=True)
+            log.info("Ativo salvo: id=%s, ticker=%s, preço=%s", aid, ticker, preco_atual)
+
+            return jsonify({
+                "success": True,
+                "id": aid,
+                "precoAtual": preco_atual,
+                "message": "Ativo salvo com sucesso"
+            })
+        except Exception as e:
+            log.error("Erro ao salvar ativo em carteira %s: %s", cid, e)
+            return jsonify({"success": False, "error": str(e)}), 400
+
+    @app.route("/api/carteira/ativo/<int:aid>/deletar", methods=["POST"])
+    def api_deletar_ativo_carteira(aid):
+        """Deletar ativo da carteira"""
+        try:
+            db.delete_ativo_carteira(aid)
+            log.info("Ativo deletado: id=%s", aid)
+            return jsonify({"success": True, "message": "Ativo removido com sucesso"})
+        except Exception as e:
+            log.error("Erro ao deletar ativo %s: %s", aid, e)
+            return jsonify({"success": False, "error": str(e)}), 400
+
+    @app.route("/api/carteira/<int:cid>/atualizar-precos", methods=["POST"])
+    @rate_limit(max_calls=10, window=60)
+    def api_atualizar_precos_carteira(cid):
+        """Atualizar preços de todos os ativos da carteira via Yahoo Finance"""
+        from system.data.precos import obter_preco_ativo_yahoo
+
+        try:
+            ativos = db.get_ativos_carteira(cid)
+            if not ativos:
+                return jsonify({
+                    "success": False,
+                    "error": "Esta carteira não contém ativos",
+                    "message": "Nenhum ativo para atualizar"
+                }), 400
+
+            atualizados = 0
+            erros = []
+
+            for ativo in ativos:
+                ticker = (ativo.get("ticker") or "").strip()
+                if not ticker:
+                    continue
+
+                try:
+                    preco = obter_preco_ativo_yahoo(ticker)
+                    if preco and preco > 0:
+                        db.atualizar_preco_ativo(ativo["id"], preco)
+                        atualizados += 1
+                        log.info("Preço atualizado: %s = R$ %.2f", ticker, preco)
+                    else:
+                        erros.append(f"{ticker}: preço não disponível")
+                except Exception as e:
+                    erros.append(f"{ticker}: {str(e)}")
+                    log.error("Erro ao atualizar preço de %s: %s", ticker, e)
+
+                # Pequeno delay para não sobrecarregar API
+                time.sleep(0.2)
+
+            msg = f"{atualizados} ativo(s) atualizado(s)"
+            if erros:
+                msg += f"; {len(erros)} erro(s)"
+
+            return jsonify({
+                "success": atualizados > 0,
+                "atualizados": atualizados,
+                "erros": erros,
+                "message": msg
+            })
+        except Exception as e:
+            log.error("Erro ao atualizar preços da carteira %s: %s", cid, e)
+            return jsonify({"success": False, "error": str(e)}), 500
 
     # ---- Inicializar scheduler de notificações ----
     @app.shell_context_processor

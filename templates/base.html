@@ -28,6 +28,8 @@
                 href="{{ url_for('simulador') }}">Simulador</a>
             <a class="nav-btn{% if active_page == 'historico' %} active{% endif %}"
                 href="{{ url_for('historico') }}">Histórico</a>
+            <a class="nav-btn{% if active_page == 'carteira' %} active{% endif %}"
+                href="{{ url_for('carteira_page') }}">Carteira</a>
             <a class="nav-btn{% if active_page == 'dashboard' %} active{% endif %}"
                 href="{{ url_for('dashboard') }}">Dashboard</a>
             <a class="nav-btn{% if active_page == 'opcoes' %} active{% endif %}"
