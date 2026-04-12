@@ -1,68 +1,76 @@
 {% extends "base.html" %}
 {% set active_page = 'carteira' %}
 
+{% block head_extra %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/carteira.css') }}">
+{% endblock %}
+
 {% block body %}
-<div id="page-carteira" class="page" style="display: grid; grid-template-columns: 280px 1fr; gap: 0; height: 100vh;">
-    <!-- Sidebar com lista de carteiras -->
-    <aside class="sidebar">
-        <div style="padding: 8px 16px; border-bottom: 1px solid rgba(255,255,255,0.1);">
-            <h3 style="margin: 0 0 12px; font-size: 12px; text-transform: uppercase; color: var(--text2);">Carteiras
-            </h3>
-            <div class="form-group" style="margin-bottom: 12px;">
-                <input type="text" placeholder="Buscar..." class="search-input" id="search-carteiras"
-                    style="width: 100%; font-size: 12px; padding: 6px 8px;">
+<div
+    id="page-carteira"
+    class="page carteira-page"
+    data-carteira-id="{{ carteira_selecionada.id if carteira_selecionada else '' }}"
+    data-carteira-url="{{ url_for('carteira_page') }}"
+>
+    <aside class="sidebar carteira-sidebar">
+        <div class="carteira-sidebar-header">
+            <h3 class="carteira-sidebar-title">Carteiras</h3>
+            <div class="form-group carteira-search-group">
+                <input
+                    type="text"
+                    placeholder="Buscar..."
+                    class="search-input carteira-search-input"
+                    id="search-carteiras"
+                >
             </div>
-            <button class="btn btn-primary" id="btn-nova-carteira" style="width: 100%; font-size: 12px; padding: 8px;">
+            <button class="btn btn-primary carteira-full-btn" id="btn-nova-carteira">
                 + Nova
             </button>
         </div>
 
-        <div style="overflow-y: auto; flex: 1; padding: 8px;">
+        <div class="carteira-sidebar-list">
             {% if carteiras %}
             {% for cart in carteiras %}
-            <a href="{{ url_for('carteira_page', id=cart.id) }}"
-                class="sidebar-item {% if carteira_selecionada and carteira_selecionada.id == cart.id %}active{% endif %}"
-                style="display: block; padding: 12px; margin-bottom: 4px; background: var(--bg3); border-left: 3px solid transparent; text-decoration: none; color: var(--text); border-radius: 4px; transition: .15s;"
-                onmouseover="this.style.background='var(--bg4)'" onmouseout="this.style.background='var(--bg3)'">
-                <div style="font-weight: 500; font-size: 13px;">{{ cart.nome }}</div>
+            <a
+                href="{{ url_for('carteira_page', id=cart.id) }}"
+                class="sidebar-item carteira-sidebar-item {% if carteira_selecionada and carteira_selecionada.id == cart.id %}active{% endif %}"
+            >
+                <div class="carteira-sidebar-name">{{ cart.nome }}</div>
                 {% if cart.descricao %}
-                <div style="font-size: 11px; color: var(--text2); margin-top: 4px;">{{ cart.descricao[:30] }}{% if
-                    cart.descricao|length > 30 %}...{% endif %}</div>
+                <div class="carteira-sidebar-description">
+                    {{ cart.descricao[:30] }}{% if cart.descricao|length > 30 %}...{% endif %}
+                </div>
                 {% endif %}
             </a>
             {% endfor %}
             {% else %}
-            <div style="padding: 20px 12px; text-align: center; color: var(--text2); font-size: 12px;">
+            <div class="carteira-sidebar-empty">
                 Nenhuma carteira.<br>Clique em "+ Nova".
             </div>
             {% endif %}
         </div>
     </aside>
 
-    <!-- Main content -->
-    <main class="content" style="display: flex; flex-direction: column; overflow: auto;">
+    <main class="content carteira-content">
         {% if carteira_selecionada %}
-        <!-- Header -->
-        <div style="padding: 16px; border-bottom: 1px solid rgba(255,255,255,0.1); background: var(--bg2);">
-            <div style="display: flex; justify-content: space-between; align-items: center; gap: 16px;">
+        <div class="carteira-header">
+            <div class="carteira-header-row">
                 <div>
-                    <h1 style="margin: 0; font-size: 20px;">{{ carteira_selecionada.nome }}</h1>
+                    <h1 class="carteira-title">{{ carteira_selecionada.nome }}</h1>
                     {% if carteira_selecionada.descricao %}
-                    <p style="margin: 4px 0 0; color: var(--text2); font-size: 13px;">{{ carteira_selecionada.descricao
-                        }}</p>
+                    <p class="carteira-description">{{ carteira_selecionada.descricao }}</p>
                     {% endif %}
                 </div>
-                <div style="display: flex; gap: 8px;">
+                <div class="carteira-actions">
                     <button class="btn btn-primary" id="btn-editar-carteira">Editar</button>
                     <button class="btn" id="btn-deletar-carteira">Deletar</button>
-                    <button class="btn" id="btn-atualizar-precos" style="white-space: nowrap;">Atualizar Preços</button>
+                    <button class="btn carteira-nowrap" id="btn-atualizar-precos">Atualizar Preços</button>
                 </div>
             </div>
         </div>
 
-        <!-- Métricas -->
         {% if metricas %}
-        <div style="padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,0.1);">
+        <div class="carteira-metrics-section">
             <div class="metrics-grid">
                 <div class="metric">
                     <div class="metric-label">Total Investido</div>
@@ -75,31 +83,32 @@
                 <div class="metric">
                     <div class="metric-label">P&L</div>
                     <div class="metric-value {{ color_pnl(metricas.pnlAbsoluto) }}">{{ brl(metricas.pnlAbsoluto) }}</div>
-                    <div class="metric-sub {{ color_pnl(metricas.pnlPercentual) }}">{{ metricas.pnlPercentual|string|replace('.', ',') }}%</div>
+                    <div class="metric-sub {{ color_pnl(metricas.pnlPercentual) }}">
+                        {{ metricas.pnlPercentual|string|replace('.', ',') }}%
+                    </div>
                 </div>
                 <div class="metric">
                     <div class="metric-label">Rentabilidade</div>
-                    <div class="metric-value {{ color_pnl(metricas.rentabilidade) }}">{{ metricas.rentabilidade|string|replace('.', ',') }}%</div>
+                    <div class="metric-value {{ color_pnl(metricas.rentabilidade) }}">
+                        {{ metricas.rentabilidade|string|replace('.', ',') }}%
+                    </div>
                 </div>
             </div>
         </div>
         {% endif %}
 
-        <!-- Validação de alocações -->
         {% if not validacao_alocacoes[0] %}
-        <div
-            style="padding: 12px 16px; background: rgba(248,113,113,0.15); border-left: 3px solid #f87171; color: #f87171; font-size: 12px;">
+        <div class="carteira-alert">
             ⚠ {{ validacao_alocacoes[1] }}
         </div>
         {% endif %}
 
-        <!-- Tabela de ativos -->
-        <div style="padding: 12px; flex: 1; overflow-y: auto;">
-            <div class="card">
-                <div class="card-title" style="margin-bottom: 8px;">Ativos</div>
+        <div class="carteira-table-section">
+            <div class="card ativos-card">
+                <div class="card-title carteira-card-title">Ativos</div>
                 {% if ativos %}
-                <div class="table-wrap">
-                    <table>
+                <div class="table-wrap carteira-table-wrap">
+                    <table class="carteira-table">
                         <thead>
                             <tr>
                                 <th>Ticker</th>
@@ -108,8 +117,8 @@
                                 <th>Preço Atual</th>
                                 <th>Investido</th>
                                 <th>Valor Atual</th>
-                                <th>P&L (R$)</th>
-                                <th>P&L (%)</th>
+                                <th>P&amp;L (R$)</th>
+                                <th>P&amp;L (%)</th>
                                 <th>Aloc. Ideal</th>
                                 <th>Aloc. Real</th>
                                 <th></th>
@@ -126,7 +135,7 @@
                             {% set aloc_real = (valor_atual / total_atual * 100) if total_atual > 0 else 0 %}
                             {% set aloc_ideal = ativo.alocacaoIdeal %}
                             <tr>
-                                <td class="mono" style="font-weight: 500;">{{ ativo.ticker }}</td>
+                                <td class="mono carteira-ticker-cell">{{ ativo.ticker }}</td>
                                 <td class="mono">{{ ativo.quantidade|int }}</td>
                                 <td class="mono">{{ brl(ativo.precoMedio) }}</td>
                                 <td class="mono">{{ brl(preco_atual) }}</td>
@@ -136,7 +145,7 @@
                                 <td class="mono {{ color_pnl(pnl_pct) }}">{{ ("%.2f" % pnl_pct)|replace('.', ',') }}%</td>
                                 <td class="mono">{{ ("%.1f" % aloc_ideal)|replace('.', ',') }}%</td>
                                 <td class="mono">{{ ("%.1f" % aloc_real)|replace('.', ',') }}%</td>
-                                <td style="text-align: right;">
+                                <td class="carteira-actions-cell">
                                     <button class="btn btn-sm btn-icon edit-ativo" data-id="{{ ativo.id }}">✎</button>
                                     <button class="btn btn-sm btn-icon delete-ativo" data-id="{{ ativo.id }}">✕</button>
                                 </td>
@@ -145,19 +154,18 @@
                         </tbody>
                     </table>
                 </div>
-                <button class="btn btn-primary" id="btn-novo-ativo" style="margin-top: 12px;">+ Adicionar Ativo</button>
+                <button class="btn btn-primary carteira-add-btn" id="btn-novo-ativo">+ Adicionar Ativo</button>
                 {% else %}
-                <div style="padding: 40px; text-align: center; color: var(--text2);">
-                    <div style="font-size: 14px; margin-bottom: 12px;">Nenhum ativo adicionado.</div>
+                <div class="carteira-empty-state">
+                    <div class="carteira-empty-title">Nenhum ativo adicionado.</div>
                     <button class="btn btn-primary" id="btn-novo-ativo">+ Adicionar Ativo</button>
                 </div>
                 {% endif %}
             </div>
         </div>
 
-        <!-- Gráfico de alocação - Comentado por enquanto para mais espaço à tabela -->
-        <!-- {% if chart_alocacao %}
-        <div style="padding: 16px; border-top: 1px solid rgba(255,255,255,0.1); max-height: 400px; overflow-y: auto;">
+        {% if chart_alocacao %}
+        <div class="carteira-chart-section">
             <div class="card">
                 <div class="card-title">Alocação (Ideal vs Real)</div>
                 <div class="chart-container">
@@ -165,15 +173,13 @@
                 </div>
             </div>
         </div>
-        {% endif %} -->
+        {% endif %}
         {% else %}
-        <div
-            style="padding: 40px; text-align: center; color: var(--text2); flex: 1; display: flex; align-items: center; justify-content: center;">
+        <div class="carteira-empty-page">
             <div>
-                <div style="font-size: 48px; margin-bottom: 16px;">📊</div>
-                <div style="font-size: 16px; margin-bottom: 8px;">Selecione ou crie uma carteira</div>
-                <div style="font-size: 13px; color: var(--text3); margin-bottom: 20px;">Use o menu à esquerda ou clique
-                    em "+ Nova"</div>
+                <div class="carteira-empty-icon">📊</div>
+                <div class="carteira-empty-page-title">Selecione ou crie uma carteira</div>
+                <div class="carteira-empty-page-text">Use o menu à esquerda ou clique em "+ Nova"</div>
                 <button class="btn btn-primary" id="btn-nova-carteira-empty">+ Nova Carteira</button>
             </div>
         </div>
@@ -181,12 +187,11 @@
     </main>
 </div>
 
-<!-- Modal Carteira -->
 <div class="modal-overlay" id="modal-carteira">
     <div class="modal">
         <div class="modal-title">
             <span id="modal-carteira-title">Nova Carteira</span>
-            <a class="btn btn-icon" onclick="closeModal('modal-carteira')">✕</a>
+            <button type="button" class="btn btn-icon" data-close-modal="modal-carteira">✕</button>
         </div>
         <form id="form-carteira" method="post">
             <div class="modal-body">
@@ -197,24 +202,28 @@
                 </div>
                 <div class="form-group">
                     <label class="form-label">Descrição</label>
-                    <textarea id="carteira-descricao" name="descricao" placeholder="Descrição opcional" rows="2"
-                        style="min-height: 60px;"></textarea>
+                    <textarea
+                        id="carteira-descricao"
+                        name="descricao"
+                        placeholder="Descrição opcional"
+                        rows="2"
+                        class="carteira-descricao-input"
+                    ></textarea>
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn" onclick="closeModal('modal-carteira')">Cancelar</button>
+                <button type="button" class="btn" data-close-modal="modal-carteira">Cancelar</button>
                 <button type="submit" class="btn btn-primary">Salvar</button>
             </div>
         </form>
     </div>
 </div>
 
-<!-- Modal Ativo -->
 <div class="modal-overlay" id="modal-ativo">
     <div class="modal modal-lg">
         <div class="modal-title">
             <span id="modal-ativo-title">Novo Ativo</span>
-            <a class="btn btn-icon" onclick="closeModal('modal-ativo')">✕</a>
+            <button type="button" class="btn btn-icon" data-close-modal="modal-ativo">✕</button>
         </div>
         <form id="form-ativo" method="post">
             <div class="modal-body">
@@ -222,358 +231,71 @@
                 <div class="form-row">
                     <div class="form-group">
                         <label class="form-label">Ticker <span>*</span></label>
-                        <input type="text" id="ativo-ticker" name="ticker" placeholder="PETR4" required
-                            style="text-transform: uppercase;">
+                        <input
+                            type="text"
+                            id="ativo-ticker"
+                            name="ticker"
+                            placeholder="PETR4"
+                            required
+                            class="carteira-uppercase-input"
+                        >
                     </div>
                     <div class="form-group">
                         <label class="form-label">Quantidade <span>*</span></label>
-                        <input type="number" id="ativo-quantidade" name="quantidade" placeholder="100" step="0.01"
-                            min="0.01" required>
+                        <input
+                            type="number"
+                            id="ativo-quantidade"
+                            name="quantidade"
+                            placeholder="100"
+                            step="0.01"
+                            min="0.01"
+                            required
+                        >
                     </div>
                 </div>
                 <div class="form-row">
                     <div class="form-group">
                         <label class="form-label">Preço Médio <span>*</span></label>
-                        <input type="number" id="ativo-preco-medio" name="precoMedio" placeholder="25.50" step="0.01"
-                            min="0" required>
+                        <input
+                            type="number"
+                            id="ativo-preco-medio"
+                            name="precoMedio"
+                            placeholder="25.50"
+                            step="0.01"
+                            min="0"
+                            required
+                        >
                     </div>
                     <div class="form-group">
                         <label class="form-label">Alocação Ideal (%) <span>*</span></label>
-                        <input type="number" id="ativo-alocacao" name="alocacaoIdeal" placeholder="2.15" step="0.01"
-                            min="0" max="100" required>
+                        <input
+                            type="number"
+                            id="ativo-alocacao"
+                            name="alocacaoIdeal"
+                            placeholder="2.15"
+                            step="0.01"
+                            min="0"
+                            max="100"
+                            required
+                        >
                         <div class="input-hint" id="hint-alocacao"></div>
                     </div>
                 </div>
-                <div style="padding: 12px; background: rgba(99,102,241,0.1); border-radius: 4px; margin-top: 12px;">
-                    <div style="font-size: 12px; color: var(--text2);">
+                <div class="carteira-price-box">
+                    <div class="carteira-price-text">
                         <strong>Preço Atual:</strong> <span id="ativo-preco-atual-display">—</span>
                     </div>
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn" onclick="closeModal('modal-ativo')">Cancelar</button>
+                <button type="button" class="btn" data-close-modal="modal-ativo">Cancelar</button>
                 <button type="submit" class="btn btn-primary">Salvar</button>
             </div>
         </form>
     </div>
 </div>
+{% endblock %}
 
-<style>
-    .metrics-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-        gap: 8px;
-    }
-
-    @media (max-width: 1200px) {
-        .metrics-grid {
-            grid-template-columns: repeat(2, 1fr);
-        }
-    }
-
-    .sidebar-item.active {
-        background: rgba(74, 222, 128, 0.15) !important;
-        border-left-color: #4ade80 !important;
-    }
-
-    .chart-container {
-        width: 100%;
-        height: auto;
-    }
-
-    .mono {
-        font-family: 'JetBrains Mono', monospace;
-        font-size: 12px;
-    }
-
-    .modal-lg {
-        max-width: 600px;
-    }
-
-    /* Compactar métricas */
-    .metric {
-        padding: 8px;
-    }
-
-    .metric-label {
-        font-size: 11px;
-        margin-bottom: 2px;
-    }
-
-    .metric-value {
-        font-size: 14px;
-        font-weight: 600;
-    }
-
-    .metric-sub {
-        font-size: 10px;
-        margin-top: 2px;
-    }
-
-    /* Tabela melhorada */
-    .table-wrap {
-        border: 1px solid rgba(255,255,255,0.1);
-        border-radius: 4px;
-        overflow-x: auto;
-    }
-
-    .table-wrap table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 12px;
-    }
-
-    .table-wrap thead {
-        background: rgba(26, 30, 42, 0.8);
-    }
-
-    .table-wrap th {
-        padding: 10px 8px;
-        text-align: left;
-        border-bottom: 1px solid rgba(255,255,255,0.1);
-        font-weight: 600;
-        font-size: 11px;
-        text-transform: uppercase;
-        white-space: nowrap;
-    }
-
-    .table-wrap td {
-        padding: 8px 8px;
-        border-bottom: 1px solid rgba(255,255,255,0.05);
-    }
-
-    .table-wrap tbody tr:hover {
-        background: rgba(255,255,255,0.02);
-    }
-</style>
-
-<script>
-    function closeModal(modalId) {
-        document.getElementById(modalId).classList.remove('open');
-    }
-
-    function openModalCarteira(id) {
-        const modal = document.getElementById('modal-carteira');
-        if (id) {
-            document.getElementById('modal-carteira-title').textContent = 'Editar Carteira';
-            document.getElementById('carteira-id').value = id;
-            // Carregar dados (aqui poderíamos fazer um AJAX para buscar dados completos)
-        } else {
-            document.getElementById('modal-carteira-title').textContent = 'Nova Carteira';
-            document.getElementById('form-carteira').reset();
-            document.getElementById('carteira-id').value = '';
-        }
-        modal.classList.add('open');
-    }
-
-    function openModalAtivo(id) {
-        const modal = document.getElementById('modal-ativo');
-        if (id) {
-            document.getElementById('modal-ativo-title').textContent = 'Editar Ativo';
-            document.getElementById('ativo-id').value = id;
-        } else {
-            document.getElementById('modal-ativo-title').textContent = 'Novo Ativo';
-            document.getElementById('form-ativo').reset();
-            document.getElementById('ativo-id').value = '';
-        }
-        modal.classList.add('open');
-    }
-
-    // Event Listeners
-    document.getElementById('btn-nova-carteira')?.addEventListener('click', () => openModalCarteira());
-    document.getElementById('btn-nova-carteira-empty')?.addEventListener('click', () => openModalCarteira());
-    document.getElementById('btn-editar-carteira')?.addEventListener('click', function () {
-        openModalCarteira('{{ carteira_selecionada.id if carteira_selecionada else "" }}');
-    });
-    document.getElementById('btn-novo-ativo')?.addEventListener('click', () => openModalAtivo());
-
-    // Form submit carteira
-    document.getElementById('form-carteira')?.addEventListener('submit', async function (e) {
-        e.preventDefault();
-        const id = document.getElementById('carteira-id').value;
-        const nome = document.getElementById('carteira-nome').value;
-        const descricao = document.getElementById('carteira-descricao').value;
-
-        const data = { nome, descricao };
-        if (id) data.id = id;
-
-        try {
-            const response = await fetch('/api/carteira/salvar', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            });
-            const result = await response.json();
-            if (result.success) {
-                showToast(result.message, 'success');
-                setTimeout(() => location.reload(), 500);
-            } else {
-                showToast(result.error, 'error');
-            }
-        } catch (err) {
-            showToast('Erro ao salvar carteira', 'error');
-        }
-        closeModal('modal-carteira');
-    });
-
-    // Form submit ativo
-    document.getElementById('form-ativo')?.addEventListener('submit', async function (e) {
-        e.preventDefault();
-        const carteiraId = '{{ carteira_selecionada.id if carteira_selecionada else "" }}';
-        if (!carteiraId) {
-            showToast('Selecione uma carteira', 'error');
-            return;
-        }
-
-        const id = document.getElementById('ativo-id').value;
-        const ticker = document.getElementById('ativo-ticker').value.toUpperCase();
-        const quantidade = parseFloat(document.getElementById('ativo-quantidade').value);
-        const precoMedio = parseFloat(document.getElementById('ativo-preco-medio').value);
-        const alocacaoIdeal = parseFloat(document.getElementById('ativo-alocacao').value);
-
-        const data = { ticker, quantidade, precoMedio, alocacaoIdeal };
-        if (id) data.id = id;
-
-        try {
-            const response = await fetch(`/api/carteira/${carteiraId}/ativo/salvar`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            });
-            const result = await response.json();
-            if (result.success) {
-                showToast(result.message, 'success');
-                setTimeout(() => location.reload(), 500);
-            } else {
-                showToast(result.error, 'error');
-            }
-        } catch (err) {
-            showToast('Erro ao salvar ativo', 'error');
-        }
-        closeModal('modal-ativo');
-    });
-
-    // Deletar carteira
-    document.getElementById('btn-deletar-carteira')?.addEventListener('click', async function () {
-        const carteiraId = '{{ carteira_selecionada.id if carteira_selecionada else "" }}';
-        if (!carteiraId) return;
-
-        if (!confirm('Tem certeza que deseja deletar esta carteira? Todos os ativos serão removidos.')) return;
-
-        try {
-            const response = await fetch(`/api/carteira/${carteiraId}/deletar`, {
-                method: 'POST'
-            });
-            const result = await response.json();
-            if (result.success) {
-                showToast(result.message, 'success');
-                setTimeout(() => location.href = '{{ url_for("carteira_page") }}', 500);
-            } else {
-                showToast(result.error, 'error');
-            }
-        } catch (err) {
-            showToast('Erro ao deletar carteira', 'error');
-        }
-    });
-
-    // Deletar ativo
-    document.querySelectorAll('.delete-ativo')?.forEach(btn => {
-        btn.addEventListener('click', async function () {
-            const ativoId = this.dataset.id;
-            if (!confirm('Remover este ativo?')) return;
-
-            try {
-                const response = await fetch(`/api/carteira/ativo/${ativoId}/deletar`, {
-                    method: 'POST'
-                });
-                const result = await response.json();
-                if (result.success) {
-                    showToast(result.message, 'success');
-                    setTimeout(() => location.reload(), 500);
-                } else {
-                    showToast(result.error, 'error');
-                }
-            } catch (err) {
-                showToast('Erro ao deletar ativo', 'error');
-            }
-        });
-    });
-
-    // Editar ativo
-    document.querySelectorAll('.edit-ativo')?.forEach(btn => {
-        btn.addEventListener('click', function () {
-            const ativoId = this.dataset.id;
-            openModalAtivo(ativoId);
-            // Aqui poderíamos fazer um AJAX para carregar dados do ativo
-        });
-    });
-
-    // Atualizar preços
-    document.getElementById('btn-atualizar-precos')?.addEventListener('click', async function () {
-        const carteiraId = '{{ carteira_selecionada.id if carteira_selecionada else "" }}';
-        if (!carteiraId) return;
-
-        this.disabled = true;
-        this.textContent = 'Atualizando...';
-
-        try {
-            const response = await fetch(`/api/carteira/${carteiraId}/atualizar-precos`, {
-                method: 'POST'
-            });
-            const result = await response.json();
-            if (result.success || result.atualizados > 0) {
-                showToast(result.message, 'success');
-                setTimeout(() => location.reload(), 1000);
-            } else {
-                showToast(result.message || result.error, 'warning');
-            }
-        } catch (err) {
-            showToast('Erro ao atualizar preços', 'error');
-        } finally {
-            this.disabled = false;
-            this.textContent = 'Atualizar Preços';
-        }
-    });
-
-    // Modal overlay close
-    document.querySelectorAll('.modal-overlay').forEach(overlay => {
-        overlay.addEventListener('click', function (e) {
-            if (e.target === this) closeModal(this.id);
-        });
-    });
-
-    // ESC para fechar modais
-    document.addEventListener('keydown', function (e) {
-        if (e.key === 'Escape') {
-            document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('open'));
-        }
-    });
-
-    // Ctrl+S para enviar formulário
-    document.addEventListener('keydown', function (e) {
-        if (e.ctrlKey && e.key === 's') {
-            e.preventDefault();
-            const openModal = document.querySelector('.modal-overlay.open');
-            if (openModal) {
-                const form = openModal.querySelector('form');
-                if (form) form.submit();
-            }
-        }
-    });
-
-    // Helper: showToast (baseado em base.html)
-    function showToast(message, category = 'info') {
-        const toast = document.createElement('div');
-        toast.className = `toast toast-${category}`;
-        toast.setAttribute('data-toast', '');
-        toast.innerHTML = `<span>${message}</span>`;
-        document.body.appendChild(toast);
-
-        setTimeout(() => toast.classList.add('show'), 10);
-        setTimeout(() => {
-            toast.classList.remove('show');
-            setTimeout(() => toast.remove(), 300);
-        }, 5000);
-    }
-</script>
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/carteira.js') }}"></script>
 {% endblock %}

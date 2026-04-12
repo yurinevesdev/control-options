@@ -93,11 +93,30 @@ class Database:
     def connect(self) -> sqlite3.Connection:
         if self._conn is None:
             self.path.parent.mkdir(parents=True, exist_ok=True)
-            self._conn = sqlite3.connect(self.path, check_same_thread=False)
-            self._conn.row_factory = sqlite3.Row
-            self._conn.execute("PRAGMA foreign_keys = ON")
-            self._conn.execute("PRAGMA journal_mode = WAL")  # Melhor performance
-            self._init_schema()
+            conn: Optional[sqlite3.Connection] = None
+            try:
+                conn = sqlite3.connect(self.path, check_same_thread=False)
+                conn.row_factory = sqlite3.Row
+
+                foreign_keys_cursor = conn.execute("PRAGMA foreign_keys = ON")
+                foreign_keys_cursor.close()
+
+                # `journal_mode = WAL` pode causar transição interna de estado na conexão.
+                # Consumimos e fechamos o cursor explicitamente antes de seguir.
+                journal_mode_cursor = conn.execute("PRAGMA journal_mode = WAL")
+                journal_mode_cursor.fetchone()
+                journal_mode_cursor.close()
+
+                self._conn = conn
+                self._init_schema()
+            except Exception:
+                if conn is not None:
+                    try:
+                        conn.close()
+                    except Exception:
+                        pass
+                self._conn = None
+                raise
         return self._conn
 
     def _init_schema(self) -> None:

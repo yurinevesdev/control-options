@@ -894,7 +894,7 @@ def create_app() -> Flask:
 
                     # Gerar gráfico se tem ativos
                     if ativos:
-                        chart_alocacao = plotly_carteira_alocacao(ativos)
+                        chart_alocacao = plotly_carteira_alocacao(ativos, include_plotlyjs="cdn")
             except (ValueError, TypeError):
                 pass
 

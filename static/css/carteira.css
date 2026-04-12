@@ -1,0 +1,344 @@
+.carteira-page {
+    display: grid;
+    grid-template-columns: 280px minmax(0, 1fr);
+    gap: 0;
+    height: calc(100vh - var(--h-header));
+}
+
+.carteira-sidebar {
+    padding: 0;
+    gap: 0;
+}
+
+.carteira-sidebar-header {
+    padding: 8px 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.carteira-sidebar-title {
+    margin: 0 0 12px;
+    font-size: 12px;
+    text-transform: uppercase;
+    color: var(--text2);
+}
+
+.carteira-search-group {
+    margin-bottom: 12px;
+}
+
+.carteira-search-input {
+    width: 100%;
+    font-size: 12px;
+    padding: 6px 8px;
+}
+
+.carteira-full-btn {
+    width: 100%;
+    font-size: 12px;
+    padding: 8px;
+}
+
+.carteira-sidebar-list {
+    overflow-y: auto;
+    flex: 1;
+    padding: 8px;
+}
+
+.carteira-sidebar-item {
+    display: block;
+    padding: 12px;
+    margin-bottom: 4px;
+    background: var(--bg3);
+    border-left: 3px solid transparent;
+    text-decoration: none;
+    color: var(--text);
+    border-radius: 4px;
+    transition: 0.15s;
+}
+
+.carteira-sidebar-item:hover {
+    background: var(--bg4);
+}
+
+.carteira-sidebar-item.active {
+    background: rgba(74, 222, 128, 0.15);
+    border-left-color: #4ade80;
+}
+
+.carteira-sidebar-name {
+    font-weight: 500;
+    font-size: 13px;
+}
+
+.carteira-sidebar-description {
+    font-size: 11px;
+    color: var(--text2);
+    margin-top: 4px;
+}
+
+.carteira-sidebar-empty {
+    padding: 20px 12px;
+    text-align: center;
+    color: var(--text2);
+    font-size: 12px;
+}
+
+.carteira-content {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    overflow: auto;
+}
+
+.carteira-header {
+    padding: 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    background: var(--bg2);
+}
+
+.carteira-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+}
+
+.carteira-title {
+    margin: 0;
+    font-size: 20px;
+}
+
+.carteira-description {
+    margin: 4px 0 0;
+    color: var(--text2);
+    font-size: 13px;
+}
+
+.carteira-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.carteira-nowrap {
+    white-space: nowrap;
+}
+
+.carteira-metrics-section {
+    padding: 8px 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 8px;
+}
+
+.metric {
+    padding: 8px;
+}
+
+.metric-label {
+    font-size: 11px;
+    margin-bottom: 2px;
+}
+
+.metric-value {
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.metric-sub {
+    font-size: 10px;
+    margin-top: 2px;
+}
+
+.carteira-alert {
+    padding: 12px 16px;
+    background: rgba(248, 113, 113, 0.15);
+    border-left: 3px solid #f87171;
+    color: #f87171;
+    font-size: 12px;
+}
+
+.carteira-table-section {
+    padding: 12px;
+}
+
+.ativos-card {
+    display: flex;
+    flex-direction: column;
+}
+
+.carteira-card-title {
+    margin-bottom: 8px;
+}
+
+.carteira-table-wrap {
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    overflow-x: auto;
+    overflow-y: auto;
+}
+
+.carteira-table {
+    width: max-content;
+    min-width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+
+.carteira-table thead {
+    background: rgba(26, 30, 42, 0.92);
+}
+
+.carteira-table th {
+    padding: 10px 8px;
+    text-align: left;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    white-space: nowrap;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
+.carteira-table td {
+    padding: 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    white-space: nowrap;
+}
+
+.carteira-table tbody tr:hover {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.carteira-ticker-cell,
+.mono {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+}
+
+.carteira-ticker-cell {
+    font-weight: 500;
+}
+
+.carteira-actions-cell {
+    text-align: right;
+    min-width: 82px;
+}
+
+.carteira-add-btn {
+    margin-top: 12px;
+    align-self: flex-start;
+}
+
+.carteira-empty-state {
+    padding: 40px;
+    text-align: center;
+    color: var(--text2);
+}
+
+.carteira-empty-title {
+    font-size: 14px;
+    margin-bottom: 12px;
+}
+
+.carteira-chart-section {
+    padding: 0 12px 12px;
+}
+
+.chart-container {
+    width: 100%;
+    height: auto;
+}
+
+.carteira-empty-page {
+    padding: 40px;
+    text-align: center;
+    color: var(--text2);
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.carteira-empty-icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+}
+
+.carteira-empty-page-title {
+    font-size: 16px;
+    margin-bottom: 8px;
+}
+
+.carteira-empty-page-text {
+    font-size: 13px;
+    color: var(--text3);
+    margin-bottom: 20px;
+}
+
+.modal-lg {
+    max-width: 600px;
+}
+
+.carteira-descricao-input {
+    min-height: 60px;
+}
+
+.carteira-uppercase-input {
+    text-transform: uppercase;
+}
+
+.carteira-price-box {
+    padding: 12px;
+    background: rgba(99, 102, 241, 0.1);
+    border-radius: 4px;
+    margin-top: 12px;
+}
+
+.carteira-price-text {
+    font-size: 12px;
+    color: var(--text2);
+}
+
+@media (max-width: 1200px) {
+    .metrics-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 1024px) {
+    .carteira-page {
+        grid-template-columns: 1fr;
+        height: auto;
+        min-height: calc(100vh - var(--h-header));
+    }
+
+    .carteira-sidebar {
+        border-right: 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+}
+
+@media (max-width: 768px) {
+    .carteira-header-row {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .carteira-table-section,
+    .carteira-chart-section {
+        padding: 10px;
+    }
+
+    .ativos-card,
+    .carteira-chart-section .card {
+        padding: 12px;
+    }
+}
