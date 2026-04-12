@@ -58,7 +58,7 @@ from system.notifications.scheduler import iniciar_scheduler, parar_scheduler
 BASE_DIR = Path(__file__).resolve().parent
 db = Database(DB_PATH)
 
-logger = setup_logging(level=logging.INFO)
+logger = setup_logging(level=logging.WARNING)
 log = get_logger("app")
 
 # -------------------------------------------------------------------------
@@ -85,21 +85,6 @@ def rate_limit(max_calls: int = 30, window: int = 60):
             return fn(*args, **kwargs)
         return wrapper
     return decorator
-
-def safe_render(fn):
-    """Decorator para renderizar páginas com logging e tratamento de erros."""
-    @wraps(fn)
-    def wrapper(*args, **kwargs):
-        try:
-            log.info(f"Renderizando {fn.__name__}...")
-            result = fn(*args, **kwargs)
-            log.info(f"✓ {fn.__name__} renderizado com sucesso")
-            return result
-        except Exception as e:
-            log.error(f"✗ Erro em {fn.__name__}: {str(e)}", exc_info=True)
-            flash(f"Erro ao carregar página: {str(e)}", "error")
-            return redirect(url_for("simulador")), 500
-    return wrapper
 
 # -------------------------------------------------------------------------
 # Helpers
@@ -185,56 +170,28 @@ def create_app() -> Flask:
     app.jinja_env.filters['color_pnl'] = color_pnl
     app.jinja_env.filters['dias_ute_venc'] = dias_ate_venc
 
-    # ---- Middleware de logging ----
-    @app.before_request
-    def _log_request():
-        """Loga todas as requisições recebidas."""
-        log.info(f"{request.method} {request.path} | IP: {request.remote_addr}")
-        # Marcar hora de início para detectar timeouts
-        request.start_time = time.time()
-
-    @app.after_request
-    def _log_response(response):
-        """Loga status da resposta."""
-        elapsed = time.time() - request.start_time if hasattr(request, 'start_time') else 0
-        status_code = response.status_code
-        level = logging.WARNING if status_code >= 400 else logging.INFO
-        time_msg = f" (⏱ {elapsed:.2f}s)"
-        if elapsed > 5:
-            level = logging.WARNING  # Avisar se demorOU mais de 5s
-        log.log(level, f"{request.method} {request.path} → {status_code}{time_msg}")
-        return response
-
     # ---- DB lifecycle ----
     @app.before_request
     def _ensure_db():
-        try:
-            db.connect()
-            log.debug(f"✓ DB conectado")
-        except Exception as e:
-            log.error(f"✗ Erro ao conectar DB: {e}", exc_info=True)
-            raise
+        db.connect()
 
     @app.teardown_request
     def _close_db(exc):
         if hasattr(db, "_conn") and db._conn is not None:
             try:
                 db._conn.close()
-                log.debug(f"✓ DB desconectado")
-            except Exception as e:
-                log.warning(f"⚠ Erro ao desconectar DB: {e}")
+            except Exception:
+                pass
             db._conn = None
 
     # ---- Error handlers ----
     @app.errorhandler(404)
     def _not_found(e):
-        log.warning(f"404 Not Found: {request.path}")
         flash("Página não encontrada.", "error")
         return redirect(url_for("simulador")), 404
 
     @app.errorhandler(500)
     def _server_error(e):
-        log.error(f"500 Server Error: {request.path} | {str(e)}", exc_info=True)
         flash("Erro interno do servidor.", "error")
         return redirect(url_for("simulador")), 500
 
@@ -573,7 +530,6 @@ def create_app() -> Flask:
         return redirect(redirect_to)
 
     @app.route("/historico")
-    @safe_render
     def historico():
         ests = db.get_estruturas()
         rows = []
@@ -591,7 +547,6 @@ def create_app() -> Flask:
         )
 
     @app.route("/dashboard")
-    @safe_render
     def dashboard():
         ests = db.get_estruturas()
         all_legs = db.get_all("legs")
@@ -723,7 +678,6 @@ def create_app() -> Flask:
         return jsonify({"ativos": dados})
 
     @app.route("/opcoes")
-    @safe_render
     def opcoes_page():
         """Página de visualização de dados de opções (IV, IV Rank, etc.)."""
         tickers_comuns = ["PETR4", "VALE3", "ITUB4", "BBDC4", "ABEV3", "BBAS3", "WEGE3"]
@@ -768,20 +722,13 @@ def create_app() -> Flask:
         ticker = ticker.upper()
         mes = request.args.get("mes", type=int)
         ano = request.args.get("ano", type=int)
-
-        log.info(f"🔍 Buscando séries de opções para {ticker}...")
-
+        
         try:
-            log.debug(f"  → Chamando formatar_opcoes_tabela({ticker}, mes={mes}, ano={ano})...")
             opcoes = formatar_opcoes_tabela(ticker, mes=mes, ano=ano)
-            log.debug(f"  → Retornou {len(opcoes) if opcoes else 0} opções")
-
             if not opcoes:
-                log.warning(f"  ⚠️ Nenhuma opção encontrada para {ticker}")
                 return jsonify({"error": f"Nenhuma opção encontrada para {ticker}"}), 404
-
+            
             # Agrupar por série para facilitar consumo pelo frontend
-            log.debug(f"  → Agrupando por série...")
             series = {}
             for opt in opcoes:
                 serie = opt["serie"]
@@ -792,8 +739,7 @@ def create_app() -> Flask:
                         "opcoes": [],
                     }
                 series[serie]["opcoes"].append(opt)
-
-            log.info(f"✓ {len(series)} séries carregadas para {ticker}")
+            
             return jsonify({
                 "ticker": ticker,
                 "total_opcoes": len(opcoes),
@@ -801,7 +747,7 @@ def create_app() -> Flask:
                 "series": series,
             })
         except Exception as e:
-            log.error(f"✗ Erro ao buscar opções de {ticker}: {str(e)}", exc_info=True)
+            log.error("Erro ao buscar opções de %s: %s", ticker, e)
             return jsonify({"error": str(e)}), 500
 
     @app.route("/api/opcoes/salvar/<ticker>", methods=["POST"])
@@ -809,9 +755,7 @@ def create_app() -> Flask:
     def api_salvar_opcoes_detalhadas(ticker: str):
         """Salva opções detalhadas no banco de dados."""
         ticker = ticker.upper()
-        log.info(f"💾 Salvando opções detalhadas para {ticker}...")
         try:
-            log.debug(f"  → Buscando opções de {ticker}...")
             opcoes = formatar_opcoes_tabela(ticker)
             if not opcoes:
                 return jsonify({"error": f"Nenhuma opção encontrada para {ticker}"}), 404
@@ -827,14 +771,13 @@ def create_app() -> Flask:
             return jsonify({"error": str(e)}), 500
 
     @app.route("/opcoes/<ticker>")
-    @safe_render
     def opcoes_detalhadas_page(ticker: str):
         """Página de visualização de opções detalhadas de um ticker."""
         ticker = ticker.upper()
-
+        
         # Buscar dados do cache/DB primeiro
         opcoes_db = buscar_opcoes_serie(db, ticker)
-
+        
         return render_template(
             "opcoes_detalhadas.html",
             ticker=ticker,
@@ -846,7 +789,6 @@ def create_app() -> Flask:
     # ---- Rotas de sugestão de estruturas ----
 
     @app.route("/sugestoes")
-    @safe_render
     def sugestoes_page():
         """Página de sugestão de estruturas de opções."""
         from system.analysis.sugestoes import ESTRATEGIAS_DISPONIVEIS
@@ -930,7 +872,6 @@ def create_app() -> Flask:
     # ========================================================================
 
     @app.route("/carteira")
-    @safe_render
     def carteira_page():
         """Página principal de carteiras"""
         from system.portfolio.metrics import calcular_metricas_carteira, validar_alocacoes

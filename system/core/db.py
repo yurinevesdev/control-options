@@ -121,6 +121,7 @@ class Database:
 
     def _init_schema(self) -> None:
         c = self._conn
+        assert c is not None
 
         # Criar tabela base sem status (para compatibilidade)
         c.execute(

@@ -315,7 +315,7 @@ def baixar_series_opcoes(ticker: str) -> dict:
     """
     Baixa todas as séries de opções de um ticker.
     Retorna o JSON completo com todas as séries, strikes e dados das opções.
-
+    
     Retorna dict com:
         - ticker: ticker do ativo
         - series: lista de séries com strikes e dados de calls/puts
@@ -323,29 +323,20 @@ def baixar_series_opcoes(ticker: str) -> dict:
         - total_opcoes: número total de opções calls + puts
     """
     url = f"{OPLAB_BASE}/acoes/opcoes/{ticker}"
-    log.info(f"📡 Requisitando opções do OpLab: {url}")
     try:
-        log.debug(f"  → Iniciando requisição (timeout={TIMEOUT}s)...")
         resp = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
-        log.debug(f"  → Status: {resp.status_code}")
         resp.raise_for_status()
-        log.debug(f"  ✓ Resposta recebida")
-    except requests.Timeout:
-        log.error(f"⏱️  TIMEOUT ao buscar {ticker} em {url} (>{TIMEOUT}s)")
-        return {"error": f"Timeout após {TIMEOUT}s", "ticker": ticker, "series": []}
     except requests.RequestException as e:
-        log.error(f"❌ Erro ao acessar {url}: {str(e)}", exc_info=True)
+        log.error("Erro ao acessar %s: %s", url, e)
         return {"error": str(e), "ticker": ticker, "series": []}
 
-    log.debug(f"  → Parseando HTML com BeautifulSoup...")
     soup = BeautifulSoup(resp.content, "html.parser")
     data = extrair_json_next_data(soup)
-
+    
     if not data:
-        log.warning(f"⚠️  Não encontrou dados __NEXT_DATA__ para {ticker}")
+        log.warning("Não encontrou dados __NEXT_DATA__ para %s", ticker)
         return {"error": "Sem dados", "ticker": ticker, "series": []}
 
-    log.debug(f"  → Extraindo series...")
     page_props = data.get("props", {}).get("pageProps", {})
     series = page_props.get("series", [])
 
