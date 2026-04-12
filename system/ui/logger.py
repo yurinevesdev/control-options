@@ -50,10 +50,16 @@ def setup_logging(
     root.setLevel(level)
     root.addHandler(handler)
 
-    if log_file:
-        fh = logging.FileHandler(log_file, encoding="utf-8")
-        fh.setFormatter(logging.Formatter(fmt))
-        root.addHandler(fh)
+    # Criar arquivo de log se não existir
+    if log_file is None:
+        log_file = Path(__file__).resolve().parent.parent.parent / "logs" / "app.log"
+
+    log_file = Path(log_file)
+    log_file.parent.mkdir(parents=True, exist_ok=True)
+
+    fh = logging.FileHandler(log_file, encoding="utf-8")
+    fh.setFormatter(logging.Formatter(fmt))
+    root.addHandler(fh)
 
     # Suprimir logs ruidosos
     logging.getLogger("werkzeug").setLevel(logging.WARNING)

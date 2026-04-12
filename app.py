@@ -58,7 +58,7 @@ from system.notifications.scheduler import iniciar_scheduler, parar_scheduler
 BASE_DIR = Path(__file__).resolve().parent
 db = Database(DB_PATH)
 
-logger = setup_logging(level=logging.WARNING)
+logger = setup_logging(level=logging.INFO)
 log = get_logger("app")
 
 # -------------------------------------------------------------------------
@@ -85,6 +85,21 @@ def rate_limit(max_calls: int = 30, window: int = 60):
             return fn(*args, **kwargs)
         return wrapper
     return decorator
+
+def safe_render(fn):
+    """Decorator para renderizar páginas com logging e tratamento de erros."""
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        try:
+            log.info(f"Renderizando {fn.__name__}...")
+            result = fn(*args, **kwargs)
+            log.info(f"✓ {fn.__name__} renderizado com sucesso")
+            return result
+        except Exception as e:
+            log.error(f"✗ Erro em {fn.__name__}: {str(e)}", exc_info=True)
+            flash(f"Erro ao carregar página: {str(e)}", "error")
+            return redirect(url_for("simulador")), 500
+    return wrapper
 
 # -------------------------------------------------------------------------
 # Helpers
@@ -170,6 +185,20 @@ def create_app() -> Flask:
     app.jinja_env.filters['color_pnl'] = color_pnl
     app.jinja_env.filters['dias_ute_venc'] = dias_ate_venc
 
+    # ---- Middleware de logging ----
+    @app.before_request
+    def _log_request():
+        """Loga todas as requisições recebidas."""
+        log.info(f"{request.method} {request.path} | IP: {request.remote_addr}")
+
+    @app.after_request
+    def _log_response(response):
+        """Loga status da resposta."""
+        status_code = response.status_code
+        level = logging.WARNING if status_code >= 400 else logging.INFO
+        log.log(level, f"{request.method} {request.path} → {status_code}")
+        return response
+
     # ---- DB lifecycle ----
     @app.before_request
     def _ensure_db():
@@ -187,11 +216,13 @@ def create_app() -> Flask:
     # ---- Error handlers ----
     @app.errorhandler(404)
     def _not_found(e):
+        log.warning(f"404 Not Found: {request.path}")
         flash("Página não encontrada.", "error")
         return redirect(url_for("simulador")), 404
 
     @app.errorhandler(500)
     def _server_error(e):
+        log.error(f"500 Server Error: {request.path} | {str(e)}", exc_info=True)
         flash("Erro interno do servidor.", "error")
         return redirect(url_for("simulador")), 500
 
@@ -530,6 +561,7 @@ def create_app() -> Flask:
         return redirect(redirect_to)
 
     @app.route("/historico")
+    @safe_render
     def historico():
         ests = db.get_estruturas()
         rows = []
@@ -547,6 +579,7 @@ def create_app() -> Flask:
         )
 
     @app.route("/dashboard")
+    @safe_render
     def dashboard():
         ests = db.get_estruturas()
         all_legs = db.get_all("legs")
@@ -678,6 +711,7 @@ def create_app() -> Flask:
         return jsonify({"ativos": dados})
 
     @app.route("/opcoes")
+    @safe_render
     def opcoes_page():
         """Página de visualização de dados de opções (IV, IV Rank, etc.)."""
         tickers_comuns = ["PETR4", "VALE3", "ITUB4", "BBDC4", "ABEV3", "BBAS3", "WEGE3"]
@@ -771,13 +805,14 @@ def create_app() -> Flask:
             return jsonify({"error": str(e)}), 500
 
     @app.route("/opcoes/<ticker>")
+    @safe_render
     def opcoes_detalhadas_page(ticker: str):
         """Página de visualização de opções detalhadas de um ticker."""
         ticker = ticker.upper()
-        
+
         # Buscar dados do cache/DB primeiro
         opcoes_db = buscar_opcoes_serie(db, ticker)
-        
+
         return render_template(
             "opcoes_detalhadas.html",
             ticker=ticker,
@@ -789,6 +824,7 @@ def create_app() -> Flask:
     # ---- Rotas de sugestão de estruturas ----
 
     @app.route("/sugestoes")
+    @safe_render
     def sugestoes_page():
         """Página de sugestão de estruturas de opções."""
         from system.analysis.sugestoes import ESTRATEGIAS_DISPONIVEIS
@@ -872,6 +908,7 @@ def create_app() -> Flask:
     # ========================================================================
 
     @app.route("/carteira")
+    @safe_render
     def carteira_page():
         """Página principal de carteiras"""
         from system.portfolio.metrics import calcular_metricas_carteira, validar_alocacoes
