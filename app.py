@@ -768,13 +768,20 @@ def create_app() -> Flask:
         ticker = ticker.upper()
         mes = request.args.get("mes", type=int)
         ano = request.args.get("ano", type=int)
-        
+
+        log.info(f"🔍 Buscando séries de opções para {ticker}...")
+
         try:
+            log.debug(f"  → Chamando formatar_opcoes_tabela({ticker}, mes={mes}, ano={ano})...")
             opcoes = formatar_opcoes_tabela(ticker, mes=mes, ano=ano)
+            log.debug(f"  → Retornou {len(opcoes) if opcoes else 0} opções")
+
             if not opcoes:
+                log.warning(f"  ⚠️ Nenhuma opção encontrada para {ticker}")
                 return jsonify({"error": f"Nenhuma opção encontrada para {ticker}"}), 404
-            
+
             # Agrupar por série para facilitar consumo pelo frontend
+            log.debug(f"  → Agrupando por série...")
             series = {}
             for opt in opcoes:
                 serie = opt["serie"]
@@ -785,7 +792,8 @@ def create_app() -> Flask:
                         "opcoes": [],
                     }
                 series[serie]["opcoes"].append(opt)
-            
+
+            log.info(f"✓ {len(series)} séries carregadas para {ticker}")
             return jsonify({
                 "ticker": ticker,
                 "total_opcoes": len(opcoes),
@@ -793,7 +801,7 @@ def create_app() -> Flask:
                 "series": series,
             })
         except Exception as e:
-            log.error("Erro ao buscar opções de %s: %s", ticker, e)
+            log.error(f"✗ Erro ao buscar opções de {ticker}: {str(e)}", exc_info=True)
             return jsonify({"error": str(e)}), 500
 
     @app.route("/api/opcoes/salvar/<ticker>", methods=["POST"])
@@ -801,7 +809,9 @@ def create_app() -> Flask:
     def api_salvar_opcoes_detalhadas(ticker: str):
         """Salva opções detalhadas no banco de dados."""
         ticker = ticker.upper()
+        log.info(f"💾 Salvando opções detalhadas para {ticker}...")
         try:
+            log.debug(f"  → Buscando opções de {ticker}...")
             opcoes = formatar_opcoes_tabela(ticker)
             if not opcoes:
                 return jsonify({"error": f"Nenhuma opção encontrada para {ticker}"}), 404
