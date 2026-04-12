@@ -1,5 +1,5 @@
 """
-Yuri System — Módulo de Sugestão de Estruturas de Opções.
+System — Módulo de Sugestão de Estruturas de Opções.
 
 Analisa dados de opções disponíveis e sugere as melhores combinações
 baseado na matriz de decisão do ANALISE.md:

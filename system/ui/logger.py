@@ -1,5 +1,5 @@
 """
-Yuri System — Configuração de logging.
+System — Configuração de logging.
 """
 
 from __future__ import annotations

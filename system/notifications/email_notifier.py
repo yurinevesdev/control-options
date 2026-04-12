@@ -225,7 +225,7 @@ class EmailNotifier:
                         <li><span style="color: white; background-color: #4CAF50; padding: 2px 5px; border-radius: 3px;"><strong>SIM (Verde)</strong></span> = Opção será exercida (ITM)</li>
                         <li><span style="color: white; background-color: #FF9800; padding: 2px 5px; border-radius: 3px;"><strong>NÃO (Laranja)</strong></span> = Opção não será exercida (OTM)</li>
                     </ul>
-                    <p>Este é um alerta automático do Yuri System. Verifique os dados na plataforma antes de tomar decisões.</p>
+                    <p>Este é um alerta automático do System. Verifique os dados na plataforma antes de tomar decisões.</p>
                 </div>
             </body>
         </html>
@@ -254,7 +254,7 @@ class EmailNotifier:
             msg = MIMEMultipart("alternative")
             msg["From"] = self.from_email
             msg["To"] = self.to_email
-            msg["Subject"] = f"🔔 Yuri System - Alerta de {len(opcoes)} Opção(ões) Próximas ao Vencimento"
+            msg["Subject"] = f"🔔 System - Alerta de {len(opcoes)} Opção(ões) Próximas ao Vencimento"
             
             # Corpo HTML
             html_body = self._gerar_html_email(opcoes)

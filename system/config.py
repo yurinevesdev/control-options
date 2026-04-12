@@ -1,5 +1,5 @@
 """
-Yuri System — Configuração centralizada.
+System — Configuração centralizada.
 """
 
 from __future__ import annotations
@@ -32,7 +32,7 @@ BS_DIVIDEND_YIELD: float = float(os.environ.get("SYSTEM_DIVIDEND_YIELD", "0.0"))
 # ============================================================================
 
 DB_DIR: Path = Path(__file__).resolve().parent.parent / "instance"
-DB_FILENAME: str = os.environ.get("SYSTEM_DB", "SYSTEM_opcoes_v2.sqlite")
+DB_FILENAME: str = os.environ.get("SYSTEM_DB", "system_opcoes_v2.sqlite")
 DB_PATH: Path = DB_DIR / DB_FILENAME
 
 # ============================================================================

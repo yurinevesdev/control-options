@@ -1,5 +1,5 @@
 """
-Yuri System — aplicação Flask (port do controller js/app.js).
+System — aplicação Flask (port do controller js/app.js).
 
 Melhorias aplicadas:
 - Config centralizada em system.config

@@ -1,5 +1,5 @@
 """
-Yuri System — Busca de indicadores técnicos do Yahoo Finance.
+System — Busca de indicadores técnicos do Yahoo Finance.
 
 Usa yfinance para obter dados históricos e calcular:
 - EMA 9, EMA 21, EMA 200

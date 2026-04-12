@@ -1,5 +1,5 @@
 """
-Scheduler de tarefas de background para Yuri System.
+Scheduler de tarefas de background para System.
 Roda verificações diárias de opções próximas do vencimento e envia e-mails.
 """
 

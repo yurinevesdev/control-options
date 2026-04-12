@@ -1,5 +1,5 @@
 """
-Yuri System — Módulo de atualização de preços.
+System — Módulo de atualização de preços.
 
 Atualiza preços de ativos via Yahoo Finance e preços de opções via OpLab.
 """

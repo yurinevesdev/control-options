@@ -1,4 +1,4 @@
-"""Yuri System - System package
+"""System - System package
 
 Módulos organizados por funcionalidade:
 - core: motor matemático (Black-Scholes) e persistência (DB)

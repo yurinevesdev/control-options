@@ -1,4 +1,4 @@
-# Yuri System — Contexto da Aplicação
+# System — Contexto da Aplicação
 
 > Simulador de estratégias de opções (B3): Black-Scholes, payoff, gregas e persistência local. Use este documento como referência para melhorias e novas features.
 
@@ -6,7 +6,7 @@
 
 ## 1. Visão geral
 
-**Yuri System** roda como **aplicação web em Python (Flask)** servida localmente (ou em servidor). O utilizador monta estruturas com várias pernas (legs), vê o payoff e métricas (ganho/perda máximos, break-evens, gregas). **Persistência:** SQLite em ficheiro no disco (`instance/SYSTEM_opcoes_v2.sqlite`), não IndexedDB.
+**System** roda como **aplicação web em Python (Flask)** servida localmente (ou em servidor). O utilizador monta estruturas com várias pernas (legs), vê o payoff e métricas (ganho/perda máximos, break-evens, gregas). **Persistência:** SQLite em ficheiro no disco (`instance/SYSTEM_opcoes_v2.sqlite`), não IndexedDB.
 
 **Público-alvo:** traders de opções da B3 (Bull Spread, Iron Condor, Butterfly, etc.).
 

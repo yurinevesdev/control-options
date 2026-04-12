@@ -1,9 +1,9 @@
 """
-Yuri System — Scraper de dados de opções (OpLab).
+System — Scraper de dados de opções (OpLab).
 
 Baseado no projeto sinais-compra-ou-venda/scraping.py
 Extrai volatilidade implícita, IV Rank e IV Percentil para uso
-nas análises do Yuri System.
+nas análises do System.
 """
 
 from __future__ import annotations
@@ -186,7 +186,7 @@ def carregar_cache() -> list[dict]:
 
 
 # ============================================================================
-# Integração com DB do Yuri System
+# Integração com DB do System
 # ============================================================================
 
 def salvar_no_db(dados: list[dict], db=None) -> int:

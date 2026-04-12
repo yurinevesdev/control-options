@@ -1,5 +1,5 @@
 """
-Yuri System — Black-Scholes Engine (port fiel do js/blackscholes.js).
+System — Black-Scholes Engine (port fiel do js/blackscholes.js).
 """
 
 from __future__ import annotations
