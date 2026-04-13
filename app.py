@@ -13,6 +13,7 @@ Melhorias aplicadas:
 
 from __future__ import annotations
 
+import atexit
 import time
 import logging
 from datetime import datetime
@@ -1124,15 +1125,24 @@ def create_app() -> Flask:
     except Exception as e:
         log.warning("⚠ Scheduler de notificações não iniciado: %s", e)
     
-    # Registrar shutdown handler
     def shutdown_handler():
         try:
             parar_scheduler()
             log.info("✓ Scheduler de notificações parado")
         except Exception as e:
             log.warning("⚠ Erro ao parar scheduler: %s", e)
-    
-    app.teardown_appcontext(lambda exc: shutdown_handler() if exc is None else None)
+
+    atexit.register(shutdown_handler)
+
+    # Rota de teste para forçar execução da tarefa do scheduler
+    @app.route("/test_scheduler")
+    def test_scheduler():
+        from system.notifications.scheduler import _tarefa_verificar_opcoes_vencimento
+        try:
+            _tarefa_verificar_opcoes_vencimento()
+            return "Tarefa executada com sucesso"
+        except Exception as e:
+            return f"Erro: {e}"
 
     return app
 

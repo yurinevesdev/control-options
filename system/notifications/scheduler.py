@@ -8,7 +8,7 @@ from apscheduler.triggers.cron import CronTrigger
 from typing import Optional
 
 from system.ui.logger import get_logger
-from system.config import SCHEDULER_HORA, EMAIL_NOTIFICACOES_ATIVAS
+from system.config import DB_PATH, SCHEDULER_HORA, EMAIL_NOTIFICACOES_ATIVAS
 from system.notifications.email_notifier import criar_notificador
 from system.core.db import Database
 
@@ -18,6 +18,7 @@ _scheduler: Optional[BackgroundScheduler] = None
 
 
 def _tarefa_verificar_opcoes_vencimento():
+    db: Optional[Database] = None
     try:
         log.info("Iniciando tarefa agendada: verificação de opções próximas do vencimento")
 
@@ -30,13 +31,11 @@ def _tarefa_verificar_opcoes_vencimento():
         else:
             log.warning("⚠ Nenhuma opção próxima ao vencimento ou erro ao enviar")
 
-        db.close()
-
     except Exception as e:
         log.error("✗ Erro na tarefa agendada: %s", e)
-        
-    except Exception as e:
-        log.error("✗ Erro na tarefa agendada: %s", e)
+    finally:
+        if db is not None:
+            db.close()
 
 
 def iniciar_scheduler():

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import sqlite3
 import shutil
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
@@ -19,6 +20,9 @@ from typing import Any, Optional
 from system.ui.logger import get_logger
 
 log = get_logger("db")
+
+# Lock global para sincronizar acessos ao DB (evita conflitos entre threads)
+_db_lock = threading.Lock()
 
 
 def _now_iso() -> str:
@@ -88,30 +92,41 @@ def _row_ativo_carteira(row: sqlite3.Row) -> dict[str, Any]:
 class Database:
     def __init__(self, path: Path | str):
         self.path = Path(path)
-        self._conn: Optional[sqlite3.Connection] = None
+        self._local = threading.local()
+
+    @property
+    def _conn(self) -> Optional[sqlite3.Connection]:
+        return getattr(self._local, "conn", None)
+
+    @_conn.setter
+    def _conn(self, value: Optional[sqlite3.Connection]) -> None:
+        self._local.conn = value
 
     def connect(self) -> sqlite3.Connection:
-        if self._conn is None:
-            self.path.parent.mkdir(parents=True, exist_ok=True)
-            conn: Optional[sqlite3.Connection] = None
-            try:
-                conn = sqlite3.connect(self.path, check_same_thread=False)
-                conn.row_factory = sqlite3.Row
+        with _db_lock:
+            if self._conn is None:
+                self.path.parent.mkdir(parents=True, exist_ok=True)
+                conn: Optional[sqlite3.Connection] = None
+                try:
+                    conn = sqlite3.connect(self.path, check_same_thread=False, timeout=30.0)
+                    conn.row_factory = sqlite3.Row
 
-                foreign_keys_cursor = conn.execute("PRAGMA foreign_keys = ON")
-                foreign_keys_cursor.close()
+                    foreign_keys_cursor = conn.execute("PRAGMA foreign_keys = ON")
+                    foreign_keys_cursor.close()
+                    busy_timeout_cursor = conn.execute("PRAGMA busy_timeout = 30000")
+                    busy_timeout_cursor.close()
 
-                self._conn = conn
-                self._init_schema()
-            except Exception:
-                if conn is not None:
-                    try:
-                        conn.close()
-                    except Exception:
-                        pass
-                self._conn = None
-                raise
-        return self._conn
+                    self._conn = conn
+                    self._init_schema()
+                except Exception:
+                    if conn is not None:
+                        try:
+                            conn.close()
+                        except Exception:
+                            pass
+                    self._conn = None
+                    raise
+            return self._conn
 
     def _init_schema(self) -> None:
         c = self._conn
