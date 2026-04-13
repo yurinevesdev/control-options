@@ -272,15 +272,11 @@ def buscar_opcoes_dados(db, tickers: list[str] | None = None) -> dict[str, dict]
 def atualizar_dados_opcoes(db=None, usar_cache: bool = True) -> list[dict]:
     """
     Pipeline completo: baixa dados do OpLab, salva cache e DB.
-    Se usar_cache=True e cache existir com menos de 24h, usa cache.
+    Se usar_cache=True e cache existir, usa cache.
     """
-    # Verificar idade do cache
     if usar_cache and CACHE_FILE.exists():
-        mtime = CACHE_FILE.stat().st_mtime
-        idade_horas = (time.time() - mtime) / 3600
-        if idade_horas < 24:
-            log.info("Usando cache (%.1f horas)", idade_horas)
-            return carregar_cache()
+        log.info("Usando cache existente")
+        return carregar_cache()
 
     log.info("Atualizando dados do OpLab...")
     dados = baixar_lista_ativos()

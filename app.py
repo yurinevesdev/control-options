@@ -705,6 +705,27 @@ def create_app() -> Flask:
             except Exception as e:
                 log.warning("Erro ao buscar dados do banco: %s", e)
         
+        # Se ainda vazio, fazer scraping automático uma vez
+        if not cache:
+            try:
+                log.info("Nenhum dado encontrado, fazendo scraping automático")
+                dados = atualizar_dados_opcoes(db, usar_cache=False)
+                if dados:
+                    cache = [
+                        {
+                            "ticker": d.get("ticker", ""),
+                            "preco": d.get("preco"),
+                            "variacao_pct": d.get("variacao_pct"),
+                            "vi": d.get("vi"),
+                            "iv_rank": d.get("iv_rank"),
+                            "iv_percentil": d.get("iv_percentil"),
+                            "atualizado_em": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        }
+                        for d in dados
+                    ]
+            except Exception as e:
+                log.error("Erro no scraping automático: %s", e)
+        
         return render_template(
             "opcoes.html",
             ativos=cache,
