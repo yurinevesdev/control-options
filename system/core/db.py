@@ -101,12 +101,6 @@ class Database:
                 foreign_keys_cursor = conn.execute("PRAGMA foreign_keys = ON")
                 foreign_keys_cursor.close()
 
-                # `journal_mode = WAL` pode causar transição interna de estado na conexão.
-                # Consumimos e fechamos o cursor explicitamente antes de seguir.
-                journal_mode_cursor = conn.execute("PRAGMA journal_mode = WAL")
-                journal_mode_cursor.fetchone()
-                journal_mode_cursor.close()
-
                 self._conn = conn
                 self._init_schema()
             except Exception:
@@ -229,8 +223,6 @@ class Database:
         dest = Path(dest_path)
         dest.parent.mkdir(parents=True, exist_ok=True)
         self.connect()
-        # Forçar checkpoint do WAL
-        self._conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
         shutil.copy2(self.path, dest)
         log.info("Backup criado: %s", dest)
         return dest
@@ -239,7 +231,6 @@ class Database:
         """Fecha a conexão com a base de dados."""
         if self._conn is not None:
             try:
-                self._conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
                 self._conn.close()
             except Exception as e:
                 log.warning("Erro ao fechar DB: %s", e)
